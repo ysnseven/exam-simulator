@@ -57,13 +57,13 @@
       timerWarn:"#ef4444", timerOk:"#10b981",
     };
     const LIGHT = {
-      mode:"light", pageBg:"#f0f4f8", cardBg:"#ffffff", insetBg:"#f8fafc",
-      elevBg:"#e2e8f0", border:"#e2e8f0", borderSub:"#cbd5e1",
-      text:"#0f172a", textSub:"#475569", textMuted:"#64748b", textFaint:"#94a3b8",
-      topbar:"#ffffffee", topbarBorder:"#e2e8f0",
-      grid:"linear-gradient(#94a3b812 1px,transparent 1px),linear-gradient(90deg,#94a3b812 1px,transparent 1px)",
-      scrollTrack:"#f1f5f9", scrollThumb:"#cbd5e1",
-      idle:   {bg:"#f8fafc",  border:"#e2e8f0", text:"#475569", lBg:"#e2e8f0", lText:"#64748b"},
+      mode:"light", pageBg:"#ffffff", cardBg:"#ffffff", insetBg:"#f5f5f5",
+      elevBg:"#efefef", border:"#e4e4e4", borderSub:"#cfcfcf",
+      text:"#111111", textSub:"#444444", textMuted:"#777777", textFaint:"#aaaaaa",
+      topbar:"#ffffffee", topbarBorder:"#e4e4e4",
+      grid:"none",
+      scrollTrack:"#f5f5f5", scrollThumb:"#d0d0d0",
+      idle:   {bg:"#f5f5f5",  border:"#e4e4e4", text:"#555555", lBg:"#e4e4e4", lText:"#666666"},
       sel:    {bg:"#eff6ff",  border:"#3b82f6", text:"#1e3a5f", lBg:"#3b82f6", lText:"#fff"},
       correct:{bg:"#f0fdf4",  border:"#10b981", text:"#064e3b", lBg:"#10b981", lText:"#fff"},
       wrong:  {bg:"#fef2f2",  border:"#ef4444", text:"#7f1d1d", lBg:"#ef4444", lText:"#fff"},
@@ -71,7 +71,7 @@
       failBg:"#fff1f2", failBorder:"#ef444466",
       exCorrect:{bg:"#f0fdf4",border:"#10b98166",title:"#059669"},
       exWrong:  {bg:"#fff1f2",border:"#ef444466",title:"#dc2626"},
-      uploadBg:"#f8fafc", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
+      uploadBg:"#f5f5f5", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
       timerWarn:"#ef4444", timerOk:"#10b981",
     };
 
@@ -1456,7 +1456,7 @@
           @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
           @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
           @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-          body::before{content:'';position:fixed;inset:0;background-image:${T.grid};background-size:44px 44px;pointer-events:none;z-index:0;transition:background-image 0.3s;}
+          body::before{content:'';position:fixed;inset:0;background-image:${T.grid==="none"?"none":T.grid};background-size:44px 44px;pointer-events:none;z-index:0;transition:background-image 0.3s;opacity:${T.mode==="light"?0:1};}
           #root{position:relative;z-index:1}
           kbd{display:inline-block}
         `}</style>
