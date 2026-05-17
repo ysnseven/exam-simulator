@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>PL-300 Exam Simulator</title>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="boot-error" style="display:none;position:fixed;inset:0;padding:24px;background:#0f172a;color:#fca5a5;font-family:monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow:auto;z-index:9999"></div>
+
+  <script>
+    // Show errors instead of leaving a blank page
+    window.__showBootError = function(msg){
+      var el=document.getElementById("boot-error");
+      el.style.display="block";
+      el.textContent="⚠️ Boot Error\n\n"+msg+"\n\nวิธีแก้:\n1. ตรวจว่ามีอินเทอร์เน็ต (ต้องโหลด React/Babel จาก unpkg.com)\n2. เปิดด้วย Chrome / Edge / Firefox เวอร์ชันใหม่\n3. ถ้ายังไม่ได้ ลองรันผ่าน local server: python -m http.server 8000";
+    };
+    window.addEventListener("error",function(e){
+      window.__showBootError((e.error&&e.error.stack)||e.message||"Unknown error");
+    });
+    setTimeout(function(){
+      if(!window.React) window.__showBootError("React โหลดไม่สำเร็จ — น่าจะเป็นเพราะไม่มีอินเทอร์เน็ต หรือ firewall บล็อก unpkg.com");
+      else if(!window.Babel) window.__showBootError("Babel โหลดไม่สำเร็จ");
+    },4000);
+  </script>
+
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+
+  <script type="text/babel" data-type="module" data-presets="react">
+    const {
+      useState, useEffect, useCallback, useRef,
+      createContext, useContext, useMemo, memo
+    } = React;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THEME
+    // ─────────────────────────────────────────────────────────────────────────
+    const DARK = {
+      mode:"dark", pageBg:"#040d1a", cardBg:"#0f172a", insetBg:"#0a0f1e",
+      elevBg:"#1e293b", border:"#1e293b", borderSub:"#334155",
+      text:"#f1f5f9", textSub:"#94a3b8", textMuted:"#64748b", textFaint:"#475569",
+      topbar:"#0a0f1eee", topbarBorder:"#1e293b",
+      grid:"linear-gradient(#1e293b18 1px,transparent 1px),linear-gradient(90deg,#1e293b18 1px,transparent 1px)",
+      scrollTrack:"#0a0f1e", scrollThumb:"#1e293b",
+      idle:   {bg:"#0f172a",   border:"#1e293b", text:"#94a3b8", lBg:"#1e293b", lText:"#64748b"},
+      sel:    {bg:"#3b82f615", border:"#3b82f6", text:"#f1f5f9", lBg:"#3b82f6", lText:"#fff"},
+      correct:{bg:"#10b98115", border:"#10b981", text:"#f1f5f9", lBg:"#10b981", lText:"#fff"},
+      wrong:  {bg:"#ef444415", border:"#ef4444", text:"#fca5a5", lBg:"#ef4444", lText:"#fff"},
+      passBg:"#10b98112", passBorder:"#10b98144",
+      failBg:"#ef444412", failBorder:"#ef444444",
+      exCorrect:{bg:"#10b98110",border:"#10b98144",title:"#10b981"},
+      exWrong:  {bg:"#ef444410",border:"#ef444444",title:"#ef4444"},
+      uploadBg:"#0a0f1e", uploadLoaded:"#10b9810a", uploadBorderLoaded:"#10b98166",
+      timerWarn:"#ef4444", timerOk:"#10b981",
+    };
+    const LIGHT = {
+      mode:"light", pageBg:"#ffffff", cardBg:"#ffffff", insetBg:"#f5f5f5",
+      elevBg:"#efefef", border:"#e4e4e4", borderSub:"#cfcfcf",
+      text:"#111111", textSub:"#444444", textMuted:"#777777", textFaint:"#aaaaaa",
+      topbar:"#ffffffee", topbarBorder:"#e4e4e4",
+      grid:"none",
+      scrollTrack:"#f5f5f5", scrollThumb:"#d0d0d0",
+      idle:   {bg:"#f5f5f5",  border:"#e4e4e4", text:"#555555", lBg:"#e4e4e4", lText:"#666666"},
+      sel:    {bg:"#eff6ff",  border:"#3b82f6", text:"#1e3a5f", lBg:"#3b82f6", lText:"#fff"},
+      correct:{bg:"#f0fdf4",  border:"#10b981", text:"#064e3b", lBg:"#10b981", lText:"#fff"},
+      wrong:  {bg:"#fef2f2",  border:"#ef4444", text:"#7f1d1d", lBg:"#ef4444", lText:"#fff"},
+      passBg:"#f0fdf4", passBorder:"#10b98166",
+      failBg:"#fff1f2", failBorder:"#ef444466",
+      exCorrect:{bg:"#f0fdf4",border:"#10b98166",title:"#059669"},
+      exWrong:  {bg:"#fff1f2",border:"#ef444466",title:"#dc2626"},
+      uploadBg:"#f5f5f5", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
+      timerWarn:"#ef4444", timerOk:"#10b981",
+    };
+
+    const ThemeCtx = createContext({T:DARK,toggleTheme:()=>{}});
+    const useTheme = () => useContext(ThemeCtx);
+
+    const PALETTE = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#ec4899","#84cc16"];
+    const colorFor = (idx) => PALETTE[idx % PALETTE.length];
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PARSER
+    // ─────────────────────────────────────────────────────────────────────────
+    function parseAnyMd(raw, sourceFile = "") {
+      const fileBaseName = sourceFile.replace(/\.[^.]+$/, "") || "General";
+      const cleanText = (s) =>
+        s.replace(/\*{1,2}/g,"").replace(/https?:\/\/\S+/g,"").replace(/\s+/g," ").trim();
+
+      // ── Normalization Layer — cleans raw text before parsing, safe for all formats ──
+      raw = raw
+        .replace(/^```\s*$/gm, '')
+        .replace(/^\d+\s+[^\n]*(?:SecExams|Microsoft)[^\n]*\nPage\s+\d+\s+of\s+\d+\n?/gim, '')
+        .replace(/^Selected\s+Answer:[^\n]*$/gim, '')
+        .replace(/Correct\s+Answer:\s*\n\s*([A-E][A-E,\/\s]*)/gi, 'Correct Answer: $1')
+        .replace(/(Correct\s+Answer:\s*[A-E][A-E,\s\/]*)\s*\?/gi, '$1');
+
+      const extractOpts = (text) => {
+        const opts = [];
+        const cleaned = text
+          .replace(/Community Discussion[\s\S]*/i,"")
+          .replace(/Selected Answer:.*?\n/gi,"")
+          .replace(/https?:\/\/\S+/g,"");
+        const reLine = /^[ \t]*(?:[-*]\s+)?\(?\*{0,2}([A-E])[.)]\*{0,2}\)?\s+(.+)/gm;
+        let m;
+        while ((m = reLine.exec(cleaned)) !== null) {
+          const key = m[1];
+          if (opts.find(o=>o.key===key)) continue;
+          const t = m[2].replace(/✅.*$/,"").replace(/\(Correct Answer\)/gi,"").replace(/\*{1,2}/g,"").trim();
+          if (t) opts.push({key,text:t});
+        }
+        if (opts.length >= 2) return opts;
+        const inlineSplit = cleaned.replace(/\n/g," ");
+        const pieces = inlineSplit.split(/(?=\b[A-E]\)\s)/);
+        for (const piece of pieces) {
+          const km = piece.match(/^([A-E])\)\s+(.+)/);
+          if (!km) continue;
+          const key = km[1];
+          if (opts.find(o=>o.key===key)) continue;
+          const t = km[2]
+            .replace(/\(Correct Answer\)/gi,"").replace(/\*{1,2}/g,"")
+            .replace(/✅.*$/,"").replace(/\s+/g," ").trim();
+          if (t && !opts.find(o=>o.key===key)) opts.push({key,text:t});
+        }
+        return opts;
+      };
+
+      const extractCorrect = (text) => {
+        let keys = [];
+        const inlineRe = /\b([A-E])\)[^A-E\n]*?\(Correct Answer\)/gi;
+        let im;
+        while ((im=inlineRe.exec(text))!==null) keys.push(im[1].toUpperCase());
+        if (keys.length) return [...new Set(keys)];
+        const caM = text.match(/Correct\s+Answer[:\s]+\*{0,2}([A-E][A-E,\s]*)\*{0,2}\??\s*$/im);
+        if (caM) { keys=(caM[1].match(/[A-E]/gi)||[]).map(k=>k.toUpperCase()); if (keys.length) return [...new Set(keys)]; }
+        const ansM = text.match(/^Answer[:\s]+\*{0,2}([A-E][A-E,\/\s]*)\*{0,2}\s*$/im);
+        if (ansM) { keys=(ansM[1].match(/[A-E]/gi)||[]).map(k=>k.toUpperCase()); if (keys.length) return [...new Set(keys)]; }
+        const tickRe=/\b([A-E])\)[^\n]*✅/g; let tm;
+        while ((tm=tickRe.exec(text))!==null) keys.push(tm[1].toUpperCase());
+        if (keys.length) return [...new Set(keys)];
+        const hM=text.match(/###\s+Correct\s+Answer[:\s]+\*{0,2}([A-E](?:[,\/\s]+[A-E])*)\*{0,2}/im);
+        if (hM) { keys=(hM[1].match(/[A-E]/gi)||[]).map(k=>k.toUpperCase()); if (keys.length) return [...new Set(keys)]; }
+        const boldM=text.match(/\*\*Answer[:\s*]*\*\*\s*\*\*([A-E])\*\*/i);
+        if (boldM) return [boldM[1].toUpperCase()];
+        const boldSingle = [...text.matchAll(/\*\*([A-E])\*\*/gi)];
+        if (boldSingle.length===1) return [boldSingle[0][1].toUpperCase()];
+        const sM=text.match(/Selected\s+Answer[:\s]+([A-E])\b/i);
+        if (sM) return [sM[1].toUpperCase()];
+        return keys;
+      };
+
+      const extractExplanation = (text) => {
+        const noComm = text.replace(/Community Discussion[\s\S]*/i,"").trim();
+        const expM = noComm.match(/Explanation\s*\n+([\s\S]+?)(?=\nCorrect Answer:|$)/i);
+        if (expM) {
+          const r = expM[1].replace(/https?:\/\/\S+/g,"").replace(/\*{1,2}/g,"")
+            .replace(/Selected Answer:.*?\n/gi,"").replace(/\s+/g," ").trim();
+          if (r.length>20) return r.slice(0,700);
+        }
+        const kvM=text.match(/^EXPLANATION[:\s]+(.+)/im);
+        if (kvM) return cleanText(kvM[1]).slice(0,700);
+        return "";
+      };
+
+      const getSectionAt = (raw, pos) => {
+        const sectionPositions = [];
+        const sectionRe = /^(##\s+(?!Question\s+#\d+).+)/gm;
+        let sm;
+        while ((sm = sectionRe.exec(raw)) !== null) {
+          const title = sm[1].replace(/^##\s+(?:Domain|Topic|Section|Category|Subject)[:\s]*/i,"").replace(/^##\s*/,"").trim();
+          sectionPositions.push({pos:sm.index, title});
+        }
+        let cat = fileBaseName;
+        for (const sp of sectionPositions) { if (sp.pos <= pos) cat = sp.title; }
+        return cat;
+      };
+
+      // ── HOTSPOT parser: converts each table row into a MC sub-question ──
+      const parseHotspot = (block, qNum, category, sourceFile) => {
+        const subQs = [];
+        const scenM = block.match(/\*\*Scenario[^*]*\*\*[:\s]*([^\n]+(?:\n(?!\*\*)[^\n]*)*)/i);
+        const scenario = scenM ? cleanText(scenM[1]).slice(0,200) : '';
+        const titleM = block.match(/^(?:#{1,3}\s+)?Question\s+#\d+\s*[—–-]\s*([^\n(]+)/i);
+        const titleHint = titleM ? cleanText(titleM[1]).trim() : '';
+        const exp = extractExplanation(block);
+        const tableRe = /\*{0,2}Correct Answers?[^*\n]*\*{0,2}\s*\n((?:\|[^\n]+\n?)+)/gi;
+        let tableMatch;
+        while ((tableMatch = tableRe.exec(block)) !== null) {
+          const rows = tableMatch[1].split('\n').map(r=>r.trim()).filter(r=>r.startsWith('|'));
+          if (rows.length < 2) continue;
+          const headers = rows[0].split('|').map(c=>c.trim()).filter(Boolean);
+          const is3col = headers.length >= 3;
+          const dataRows = rows.slice(1).filter(r=>!/^\|[-\s|]+\|$/.test(r));
+          const parsed = dataRows.map(r=>{
+            const cells = r.split('|').map(c=>cleanText(c.replace(/\*{1,2}/g,'').replace(/✅/g,'').trim())).filter(Boolean);
+            if (is3col && cells.length >= 3) return {item:`${cells[0]} → ${cells[1]}`,value:cells[2]};
+            return {item:cells[0]||'',value:cells[1]||''};
+          }).filter(r=>r.item&&r.value);
+          if (parsed.length < 1) continue;
+          const uniqueVals = [...new Set(parsed.map(r=>r.value))];
+          if (uniqueVals.length < 2) continue;
+          parsed.forEach((row,i)=>{
+            const {item,value:correctVal} = row;
+            const colLabel = is3col ? headers[2] : (headers[1]||'Answer');
+            const context = scenario||titleHint;
+            const qText = item.includes('[?]')
+              ? `[HOTSPOT] ${item}`
+              : context
+                ? `[HOTSPOT] ${context} — What is the correct ${colLabel} for "${item}"?`
+                : `[HOTSPOT] What is the correct ${colLabel} for "${item}"?`;
+            const others = uniqueVals.filter(v=>v!==correctVal);
+            const pos = i % uniqueVals.length;
+            const optVals = [...others]; optVals.splice(pos,0,correctVal);
+            const opts = optVals.slice(0,5).map((v,idx)=>({key:String.fromCharCode(65+idx),text:v}));
+            const correctKey = opts.find(o=>o.text===correctVal)?.key||'A';
+            subQs.push({id:qNum*10000+i+1,num:qNum,originalNum:qNum,category,sourceFile,type:'mc',question:cleanText(qText),options:opts,answer:correctKey,answers:[correctKey],explanation:exp||'Refer to study materials.'});
+          });
+        }
+        return subQs;
+      };
+
+      // ── DRAG DROP parser: converts sequence steps into MC sub-questions ──
+      const parseDragDrop = (block, qNum, category, sourceFile) => {
+        if (/\*{0,2}Correct Answers?[^*\n]*\*{0,2}\s*\n(?:\|[^\n]+\n?)+/i.test(block))
+          return parseHotspot(block, qNum, category, sourceFile);
+        const scenM = block.match(/\*\*Scenario[^*]*\*\*[:\s]*([^\n]+(?:\n(?!\*\*)[^\n]*)*)/i);
+        const scenario = scenM ? cleanText(scenM[1]).slice(0,200) : '';
+        const exp = extractExplanation(block);
+        const stepRe = /^\d+[\.\)]\s+\*{0,2}(.+?)\*{0,2}\s*$/gm;
+        const steps = []; let sm2;
+        while ((sm2=stepRe.exec(block))!==null){const s=cleanText(sm2[1]).trim();if(s.length>=5)steps.push(s);}
+        if (steps.length < 2) return [];
+        const ordinals = ['first','second','third','fourth','fifth','sixth'];
+        const opts = steps.slice(0,5).map((s,idx)=>({key:String.fromCharCode(65+idx),text:s}));
+        return steps.map((step,i)=>{
+          const ordinal = ordinals[i]||`step ${i+1}`;
+          const qText = scenario
+            ? `[DRAG DROP] ${scenario} — What is the ${ordinal} step?`
+            : `[DRAG DROP] What is the ${ordinal} step in this process?`;
+          const correctKey = opts.find(o=>o.text===step)?.key||'A';
+          return {id:qNum*10000+i+1,num:qNum,originalNum:qNum,category,sourceFile,type:'mc',question:cleanText(qText),options:opts,answer:correctKey,answers:[correctKey],explanation:exp||'Refer to study materials.'};
+        });
+      };
+
+      // SecExams PDF format
+      if (/^(?:#{1,3}\s+)?Question\s+#\d+/im.test(raw)) {
+        const questions = []; const seen = new Set(); let skipped = 0;
+        const allBlocks = raw.split(/\n(?=(?:#{1,3}\s+)?Question\s+#\d+\b)/i);
+        let blockStart = 0;
+        for (const block of allBlocks) {
+          const numM = block.match(/^(?:#{1,3}\s+)?Question\s+#(\d+)/i);
+          if (!numM) { blockStart += block.length+1; continue; }
+          const qNum = parseInt(numM[1],10);
+          const category = getSectionAt(raw, blockStart);
+          blockStart += block.length+1;
+          if (seen.has(qNum)) continue;
+          if (/HOTSPOT/i.test(block.slice(0,200))) {
+            const hs=parseHotspot(block,qNum,category,sourceFile);
+            if(hs.length){hs.forEach(q=>questions.push(q));seen.add(qNum);}else skipped++;
+            continue;
+          }
+          if (/DRAG\s+DROP/i.test(block.slice(0,200))) {
+            const ds=parseDragDrop(block,qNum,category,sourceFile);
+            if(ds.length){ds.forEach(q=>questions.push(q));seen.add(qNum);}else skipped++;
+            continue;
+          }
+          const truncated = block.replace(/\nCommunity Discussion[\s\S]*/i,"\n");
+          const headerEnd = block.indexOf("\n",numM.index+numM[0].length);
+          const afterHeader = headerEnd>0 ? truncated.slice(headerEnd) : truncated;
+          const firstOptIdx = afterHeader.search(/\bA\)/);
+          let questionText = "", optionChunk = afterHeader;
+          if (firstOptIdx>0) { questionText=afterHeader.slice(0,firstOptIdx).trim(); optionChunk=afterHeader.slice(firstOptIdx); }
+          else { questionText=afterHeader.split("\n").map(l=>l.trim()).filter(Boolean).slice(0,3).join(" "); }
+          questionText = cleanText(questionText)
+            .replace(/^DRAG\s+DROP\s*[-–—]?\s*/i,"").replace(/^HOTSPOT\s*[-–—]?\s*/i,"")
+            .replace(/NOTE:.*?(?=\n|$)/gi,"").replace(/Each correct.*?(?=\n|$)/gi,"")
+            .replace(/\s+/g," ").trim();
+          if (questionText.length<15) { if(questionText.replace(/[•\s\d]/g,'').length>2) skipped++; continue; }
+          const opts = extractOpts(optionChunk);
+          if (opts.length<2) { skipped++; continue; }
+          const correctKeys = extractCorrect(truncated);
+          if (!correctKeys.length) { skipped++; continue; }
+          const explanation = extractExplanation(truncated);
+          seen.add(qNum);
+          questions.push({id:qNum,num:qNum,originalNum:qNum,category,sourceFile,type:correctKeys.length>1?"multi":"mc",question:questionText,options:opts,answer:correctKeys[0],answers:correctKeys,explanation:explanation||"Refer to the study materials for this topic."});
+        }
+        if (questions.length>0) { questions.sort((a,b)=>a.num-b.num); return {questions,skipped}; }
+      }
+
+      // Key-value format
+      if (/^Q:/im.test(raw) && /^ANSWER:/im.test(raw)) {
+        const questions = []; let idCounter=1; let skipped=0;
+        const kvBlocks = raw.split(/\n---+\n/);
+        let kvCategory = fileBaseName;
+        for (const blk of kvBlocks) {
+          const catM = blk.match(/^##\s+(.+)/m);
+          if (catM) { kvCategory=catM[1].trim(); continue; }
+          const qM = blk.match(/^Q:\s*(.+)/im);
+          if (!qM) continue;
+          const ansM = blk.match(/^ANSWER:\s*([A-E](?:[,\s]+[A-E])*)/im);
+          if (!ansM) { skipped++; continue; }
+          const correctKeys = (ansM[1].match(/[A-E]/gi)||[]).map(k=>k.toUpperCase());
+          if (!correctKeys.length) { skipped++; continue; }
+          const opts = [];
+          ["A","B","C","D","E"].forEach(k=>{const om=blk.match(new RegExp(`^${k}:\\s*(.+)`,"im"));if(om)opts.push({key:k,text:cleanText(om[1])});});
+          if (opts.length<2){extractOpts(blk).forEach(o=>{if(!opts.find(x=>x.key===o.key))opts.push(o);});}
+          if (opts.length<2) { skipped++; continue; }
+          const expM = blk.match(/^EXPLANATION:\s*([\s\S]+)/im);
+          const exp = expM?cleanText(expM[1]).slice(0,600):"";
+          const origNum2=idCounter;
+          questions.push({id:idCounter,num:idCounter++,originalNum:origNum2,category:kvCategory,sourceFile,type:correctKeys.length>1?"multi":"mc",question:cleanText(qM[1].trim()),options:opts,answer:correctKeys[0],answers:correctKeys,explanation:exp||"Refer to study materials."});
+        }
+        if (questions.length>0) return {questions,skipped};
+      }
+
+      // Format B: numbered questions
+      {
+        const questions = []; let idCounter=1; let skipped=0;
+        const lines = raw.split("\n");
+        let currentCategory = fileBaseName;
+        let currentBlock = []; let inQuestion = false;
+
+        const flushBlock = () => {
+          if (!currentBlock.length) return;
+          const blockText = currentBlock.join("\n");
+          const opts = extractOpts(blockText);
+          const correctKeys = extractCorrect(blockText);
+          if (opts.length>=2 && correctKeys.length) {
+            const firstOptLine = currentBlock.findIndex(l=>/^[ \t]*(?:[-*]\s+)?\(?[A-E][.)]\)?\s+/i.test(l));
+            const qLines = firstOptLine>0 ? currentBlock.slice(0,firstOptLine) : currentBlock.slice(0,3);
+            const rawQ = qLines.join(" ").replace(/^#+\s*/,"").replace(/^\d+[\.\)]\s*/,"").replace(/^Q:\s*/i,"").replace(/\*{1,2}/g,"").trim();
+            if (rawQ.length>=15) {
+              const exp = extractExplanation(blockText);
+              const origNum3=idCounter;
+              questions.push({id:idCounter,num:idCounter++,originalNum:origNum3,category:currentCategory,sourceFile,type:correctKeys.length>1?"multi":"mc",question:cleanText(rawQ),options:opts,answer:correctKeys[0],answers:correctKeys,explanation:exp||"Refer to study materials."});
+            } else { skipped++; }
+          } else { if (currentBlock.length>1) skipped++; }
+          currentBlock = []; inQuestion = false;
+        };
+
+        const isNewQuestion = (line) =>
+          /^#{1,4}\s+\d+[\.\)]/.test(line)||/^\*{1,2}Q?\d+[\.\)]\*{1,2}/.test(line)||
+          /^Q\d+[\.\)]\s+/i.test(line)||/^\d+[\.\)]\s+\S/.test(line)||
+          /^Q:\s+/i.test(line)||/^Question\s+\d+[\.\):\s]/i.test(line);
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (/^---+$/.test(trimmed)) { flushBlock(); continue; }
+          if (/^##\s+/.test(trimmed)&&!/question\s+#\d+/i.test(trimmed)) {
+            flushBlock();
+            currentCategory = trimmed.replace(/^#+\s*/,"").replace(/^(?:Domain|Topic|Section|Category|Subject)[:\s]*/i,"").trim();
+            continue;
+          }
+          if (isNewQuestion(trimmed)) { flushBlock(); inQuestion=true; currentBlock=[trimmed]; continue; }
+          if (inQuestion) currentBlock.push(line);
+        }
+        flushBlock();
+        if (questions.length>0) return {questions,skipped};
+      }
+
+      return {questions:[],skipped:0};
+    }
+
+    function dedupKey(q) {
+      return q.question.toLowerCase().trim().slice(0,80)+"|"+(q.options[0]?.text||"").toLowerCase().slice(0,40);
+    }
+
+    function extractCategories(questions) {
+      const cats = [...new Set(questions.map(q=>q.category))].filter(Boolean);
+      return cats.length ? cats : ["General"];
+    }
+
+    function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+    function formatTime(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;if(h>0)return`${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;return`${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;}
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIMITIVES
+    // ─────────────────────────────────────────────────────────────────────────
+    const ProgressBar = memo(({value,max,color="#3b82f6",thin=false})=>{
+      const{T}=useTheme();
+      const pct=max?Math.min(100,(value/max)*100):0;
+      return(<div style={{background:T.elevBg,borderRadius:99,height:thin?3:6,overflow:"hidden"}}>
+        <div style={{width:`${pct}%`,height:"100%",background:color,borderRadius:99,transition:"width 0.35s ease"}}/>
+      </div>);
+    });
+
+    const Stepper = memo(({value,min,max,onChange,color,disabled})=>{
+      const{T}=useTheme();
+      const btn=(label,action,off)=>(
+        <button onClick={action} disabled={off} style={{width:32,height:32,border:"none",background:"transparent",color:off?T.borderSub:color,fontWeight:900,fontSize:17,cursor:off?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{label}</button>
+      );
+      return(<div style={{display:"flex",alignItems:"center",background:T.insetBg,borderRadius:8,border:`1px solid ${disabled?T.border:color+"66"}`,overflow:"hidden"}}>
+        {btn("−",()=>onChange(Math.max(min,value-1)),disabled||value<=min)}
+        <span style={{width:38,textAlign:"center",color:disabled?T.textFaint:T.text,fontWeight:700,fontSize:14,fontFamily:"monospace"}}>{value}</span>
+        {btn("+",()=>onChange(Math.min(max,value+1)),disabled||value>=max)}
+      </div>);
+    });
+
+    const Card = memo(({children,style={}})=>{
+      const{T}=useTheme();
+      return <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:14,...style}}>{children}</div>;
+    });
+
+    const SectionLabel = memo(({children})=>{
+      const{T}=useTheme();
+      return <div style={{color:T.textMuted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>{children}</div>;
+    });
+
+    const Toggle = memo(({value,onChange,label})=>{
+      const{T}=useTheme();
+      return(<button onClick={()=>onChange(!value)} style={{width:48,height:26,borderRadius:99,background:value?"#3b82f6":T.elevBg,border:`1px solid ${value?"#3b82f6":T.border}`,cursor:"pointer",transition:"all 0.2s",position:"relative",flexShrink:0}} aria-label={label}>
+        <div style={{width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:value?25:3,transition:"left 0.2s",boxShadow:"0 1px 3px #0003"}}/>
+      </button>);
+    });
+
+    function ThemeToggle(){
+      const{T,toggleTheme}=useTheme();
+      return(<button onClick={toggleTheme} title={T.mode==="dark"?"Switch to Light":"Switch to Dark"} style={{position:"fixed",bottom:24,right:24,zIndex:9999,width:48,height:48,borderRadius:"50%",background:T.cardBg,border:`1.5px solid ${T.border}`,boxShadow:T.mode==="dark"?"0 4px 24px #0008":"0 4px 24px #0002",cursor:"pointer",fontSize:20,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.25s"}}>
+        {T.mode==="dark"?"☀️":"🌙"}
+      </button>);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // UPLOAD ZONE
+    // ─────────────────────────────────────────────────────────────────────────
+    const UploadZone = memo(({loadedFiles,onAddFiles,onRemoveFile,subjects,onSubjectChange})=>{
+      const{T}=useTheme();
+      const[dragging,setDragging]=useState(false);
+      const[error,setError]=useState("");
+      const[loading,setLoading]=useState(false);
+      const[loadProgress,setLoadProgress]=useState({done:0,total:0});
+      const inputRef=useRef();
+
+      const processFiles = useCallback((fileList) => {
+        const files = Array.from(fileList).filter(f=>{
+          const ext = f.name.split(".").pop().toLowerCase();
+          return ["md","txt","markdown"].includes(ext);
+        });
+        if (files.length===0) { setError("Please upload .md or .txt files."); return; }
+        setLoading(true); setError(""); setLoadProgress({done:0,total:files.length});
+        const results = []; let done = 0;
+        files.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const {questions,skipped} = parseAnyMd(e.target.result, file.name);
+              results.push({name:file.name,questions,skipped});
+            } catch(err) {
+              results.push({name:file.name,questions:[],skipped:0,parseError:err.message});
+            }
+            done++;
+            setLoadProgress({done,total:files.length});
+            if (done === files.length) {
+              setLoading(false);
+              const errors = results.filter(r=>r.parseError||r.questions.length===0);
+              if (errors.length>0 && results.every(r=>r.questions.length===0)) {
+                setError("No questions found in any file — check format.");
+              } else {
+                setError(errors.length>0 ? `${errors.length} file(s) had no questions or errors.` : "");
+              }
+              onAddFiles(results.filter(r=>r.questions.length>0));
+            }
+          };
+          reader.onerror = () => {
+            done++;
+            results.push({name:file.name,questions:[],skipped:0,parseError:"Read error"});
+            setLoadProgress({done,total:files.length});
+            if (done===files.length) { setLoading(false); setError("Failed to read one or more files."); }
+          };
+          reader.readAsText(file);
+        });
+      },[onAddFiles]);
+
+      const totalQ = loadedFiles.reduce((s,f)=>s+f.count,0);
+      const hasFiles = loadedFiles.length>0;
+
+      return(<div>
+        <div
+          onDragEnter={()=>setDragging(true)} onDragLeave={()=>setDragging(false)}
+          onDragOver={e=>e.preventDefault()}
+          onDrop={e=>{e.preventDefault();setDragging(false);processFiles(e.dataTransfer.files);}}
+          onClick={()=>inputRef.current?.click()}
+          style={{border:`2px dashed ${dragging?"#3b82f6":hasFiles?T.uploadBorderLoaded:T.border}`,borderRadius:16,padding:"22px 20px",textAlign:"center",cursor:"pointer",background:dragging?"#3b82f60a":hasFiles?T.uploadLoaded:T.uploadBg,transition:"all 0.22s"}}>
+          <input ref={inputRef} type="file" accept=".md,.txt,.markdown" multiple style={{display:"none"}}
+            onChange={e=>{processFiles(e.target.files);e.target.value="";}}/>
+          {loading?(
+            <div>
+              <div style={{color:T.textSub,fontSize:14,marginBottom:6}}>⏳ Parsing files…</div>
+              <div style={{background:T.elevBg,borderRadius:99,height:4,overflow:"hidden",maxWidth:200,margin:"0 auto"}}>
+                <div style={{width:`${(loadProgress.done/loadProgress.total)*100}%`,height:"100%",background:"#3b82f6",borderRadius:99,transition:"width 0.2s"}}/>
+              </div>
+              <div style={{color:T.textFaint,fontSize:11,marginTop:4}}>{loadProgress.done} / {loadProgress.total}</div>
+            </div>
+          ):hasFiles?(
+            <div>
+              <div style={{fontSize:20,marginBottom:2}}>📂</div>
+              <div style={{color:"#10b981",fontWeight:800,fontSize:14}}>{totalQ} questions from {loadedFiles.length} file{loadedFiles.length!==1?"s":""}</div>
+              <div style={{color:T.textMuted,fontSize:11,marginTop:4}}>Drop more files to add, or click to browse</div>
+            </div>
+          ):(
+            <div>
+              <div style={{fontSize:34,marginBottom:8}}>📄</div>
+              <div style={{color:T.text,fontWeight:700,fontSize:15}}>Drop your question files here</div>
+              <div style={{color:T.textMuted,fontSize:13,marginTop:4}}>or click to browse — .md / .txt · multiple files supported</div>
+            </div>
+          )}
+        </div>
+        {hasFiles&&(
+          <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:5}}>
+            {loadedFiles.map((f,i)=>(
+              <div key={f.name+i} style={{display:"flex",flexDirection:"column",background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:9,padding:"6px 10px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:13}}>📄</span>
+                  <span style={{color:T.textSub,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={f.name}>{f.name}</span>
+                  <span style={{background:"#10b98120",color:"#10b981",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700,flexShrink:0}}>{f.count}Q</span>
+                  {f.skipped>0&&<span style={{background:"#f59e0b20",color:"#f59e0b",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700,flexShrink:0}} title="Blocks skipped">⚠ {f.skipped}</span>}
+                  <button onClick={e=>{e.stopPropagation();onRemoveFile(f.name);}} style={{background:"transparent",border:"none",color:T.textFaint,fontSize:14,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Remove this file">✕</button>
+                </div>
+                {onSubjectChange&&(
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5}} onClick={e=>e.stopPropagation()}>
+                    <span style={{color:T.textFaint,fontSize:10,flexShrink:0}}>🗂 หมวดหมู่:</span>
+                    <input
+                      type="text"
+                      value={subjects?.[f.name]??f.name.replace(/\.[^.]+$/,"")}
+                      onChange={e=>{e.stopPropagation();onSubjectChange(f.name,e.target.value);}}
+                      onClick={e=>e.stopPropagation()}
+                      onFocus={e=>e.stopPropagation()}
+                      placeholder="ชื่อวิชา / หมวดหมู่"
+                      style={{flex:1,background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:6,color:T.text,fontSize:11,padding:"3px 8px",outline:"none",fontFamily:"inherit",minWidth:0}}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {error&&<div style={{marginTop:8,background:"#ef444412",border:"1px solid #ef444440",borderRadius:10,padding:"10px 14px",color:"#ef4444",fontSize:13}}>⚠️ {error}</div>}
+      </div>);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HOME SCREEN
+    // ─────────────────────────────────────────────────────────────────────────
+    function HomeScreen({onStart}){
+      const{T}=useTheme();
+      const[allQ,setAllQ]=useState([]);
+      const[loadedFiles,setLoadedFiles]=useState([]);
+      const[subjects,setSubjects]=useState({});
+      const[shuffleQ,setShuffleQ]=useState(true);
+      const[timedMode,setTimedMode]=useState(false);
+      const[timePerQ,setTimePerQ]=useState(90);
+      const[catState,setCatState]=useState({});
+      const[autoLoading,setAutoLoading]=useState(true);
+      const[autoError,setAutoError]=useState("");
+
+      const categories=useMemo(()=>extractCategories(allQ),[allQ]);
+
+      const handleAddFiles = useCallback((results) => {
+        setAllQ(prev => {
+          const existingKeys = new Set(prev.map(dedupKey));
+          let merged = [...prev];
+          let idCounter = prev.length>0 ? Math.max(...prev.map(q=>q.id))+1 : 1;
+          for (const {name,questions} of results) {
+            for (const q of questions) {
+              const k = dedupKey(q);
+              if (existingKeys.has(k)) continue;
+              existingKeys.add(k);
+              merged.push({...q,id:idCounter,num:idCounter,sourceFile:name});
+              idCounter++;
+            }
+          }
+          return merged;
+        });
+        setLoadedFiles(prev => {
+          const next = [...prev];
+          for (const {name,questions,skipped} of results) {
+            const existing = next.findIndex(f=>f.name===name);
+            if (existing>=0) next[existing]={name,count:questions.length,skipped};
+            else next.push({name,count:questions.length,skipped});
+          }
+          return next;
+        });
+        setSubjects(prev=>{const n={...prev};for(const{name}of results){if(!n[name])n[name]=name.replace(/\.[^.]+$/,"");}return n;});
+      },[]);
+
+      const handleRemoveFile = useCallback((fname) => {
+        setAllQ(prev => prev.filter(q=>q.sourceFile!==fname).map((q,i)=>({...q,id:i+1,num:i+1})));
+        setLoadedFiles(prev=>prev.filter(f=>f.name!==fname));
+        setSubjects(prev=>{const n={...prev};delete n[fname];return n;});
+      },[]);
+
+      const handleSubjectChange=useCallback((fname,subj)=>setSubjects(prev=>({...prev,[fname]:subj})),[]);
+
+      useEffect(()=>{
+        fetch("./ML-300.md")
+          .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.text();})
+          .then(text=>{
+            const{questions,skipped}=parseAnyMd(text,"ML-300.md");
+            if(questions.length>0)handleAddFiles([{name:"ML-300.md",questions,skipped}]);
+            else setAutoError("ไม่พบข้อสอบในไฟล์ ML-300.md — ตรวจสอบรูปแบบไฟล์อีกครั้ง");
+            setAutoLoading(false);
+          })
+          .catch(err=>{setAutoError("โหลดไฟล์ ML-300.md ไม่สำเร็จ: "+err.message);setAutoLoading(false);});
+      },[]);// eslint-disable-line
+
+      useEffect(()=>{
+        const cats = extractCategories(allQ);
+        setCatState(prev=>{
+          const s={};
+          cats.forEach(c=>{
+            const m=allQ.filter(q=>q.category===c).length;
+            s[c]={enabled:m>0,limit:prev[c]?.limit?Math.min(prev[c].limit,m):m};
+          });
+          return s;
+        });
+      },[allQ]);
+
+      const totalSelected=useMemo(()=>categories.reduce((sum,c)=>!catState[c]?.enabled?sum:sum+(catState[c]?.limit||0),0),[categories,catState]);
+      const domainStats=useMemo(()=>categories.map((c,i)=>({cat:c,color:colorFor(i),total:allQ.filter(q=>q.category===c).length})).filter(s=>s.total>0),[categories,allQ]);
+      const categoriesBySubject=useMemo(()=>{
+        const g={};
+        categories.forEach(c=>{
+          const files=[...new Set(allQ.filter(q=>q.category===c).map(q=>q.sourceFile).filter(Boolean))];
+          const subj=files.map(f=>subjects[f]||f.replace(/\.[^.]+$/,"")).filter(Boolean)[0]||"General";
+          if(!g[subj])g[subj]=[];
+          if(!g[subj].includes(c))g[subj].push(c);
+        });
+        return g;
+      },[categories,allQ,subjects]);
+      const canStart=totalSelected>0&&allQ.length>0;
+      const totalSkipped=loadedFiles.reduce((s,f)=>s+(f.skipped||0),0);
+      const parseInfo=useMemo(()=>allQ.length?`${allQ.filter(q=>q.type==="multi").length} multi · ${allQ.filter(q=>q.type==="mc").length} single · ${categories.length} topic${categories.length!==1?"s":""}`:"",[allQ,categories]);
+
+      const toggleCat=useCallback((c)=>{
+        const anyOther=categories.some(x=>x!==c&&catState[x]?.enabled);
+        if(catState[c]?.enabled&&!anyOther)return;
+        setCatState(p=>({...p,[c]:{...p[c],enabled:!p[c]?.enabled}}));
+      },[categories,catState]);
+
+      const setLimit=useCallback((c,v)=>setCatState(p=>({...p,[c]:{...p[c],limit:v}})),[]);
+
+      const applyPreset=useCallback((n)=>{
+        setCatState(()=>{const s={};categories.forEach(c=>{const m=allQ.filter(q=>q.category===c).length;s[c]={enabled:m>0,limit:n===0?m:Math.min(n,m)};});return s;});
+      },[categories,allQ]);
+
+      if(autoLoading) return(
+        <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:24}}>
+          <div style={{width:52,height:52,borderRadius:"50%",border:`4px solid ${T.border}`,borderTopColor:"#3b82f6",animation:"spin 0.9s linear infinite"}}/>
+          <div style={{textAlign:"center"}}>
+            <div style={{color:T.text,fontWeight:800,fontSize:17,marginBottom:4}}>กำลังโหลดข้อสอบ PL-300…</div>
+            <div style={{color:T.textMuted,fontSize:13}}>Microsoft Power BI Data Analyst</div>
+          </div>
+        </div>
+      );
+
+      if(autoError&&allQ.length===0) return(
+        <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:24}}>
+          <div style={{fontSize:40}}>⚠️</div>
+          <div style={{color:"#ef4444",fontWeight:700,fontSize:16,textAlign:"center"}}>{autoError}</div>
+          <button onClick={()=>{setAutoError("");setAutoLoading(true);fetch("./ML-300.md").then(r=>r.text()).then(text=>{const{questions,skipped}=parseAnyMd(text,"ML-300.md");if(questions.length>0)handleAddFiles([{name:"ML-300.md",questions,skipped}]);setAutoLoading(false);}).catch(err=>{setAutoError(err.message);setAutoLoading(false);});}}
+            style={{padding:"10px 24px",background:"#3b82f6",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+            ลองใหม่
+          </button>
+        </div>
+      );
+
+      return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 16px 80px"}}>
+        <div style={{maxWidth:660,width:"100%"}}>
+          <div style={{textAlign:"center",marginBottom:28}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"#3b82f611",border:"1px solid #3b82f633",borderRadius:12,padding:"6px 16px",marginBottom:14}}>
+              <span style={{fontSize:13}}>⚡</span>
+              <span style={{color:"#3b82f6",fontWeight:700,letterSpacing:1,fontSize:11,textTransform:"uppercase"}}>PL-300 · Power BI Data Analyst</span>
+            </div>
+            <h1 style={{fontSize:"clamp(28px,5vw,44px)",fontWeight:900,color:T.text,margin:0,lineHeight:1.1,fontFamily:"'Sora',sans-serif"}}>
+              PL-300<span style={{background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}> Exam</span>
+            </h1>
+            <p style={{color:T.textSub,marginTop:8,fontSize:13}}>Microsoft Power BI Data Analyst · ข้อสอบพร้อมทำได้เลย — เพิ่มไฟล์อื่นได้ถ้าต้องการ</p>
+          </div>
+
+          <div style={{marginBottom:8}}>
+            <UploadZone loadedFiles={loadedFiles} onAddFiles={handleAddFiles} onRemoveFile={handleRemoveFile} subjects={subjects} onSubjectChange={handleSubjectChange}/>
+          </div>
+
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,padding:"7px 14px",background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:10}}>
+            <span style={{fontSize:13}}>📊</span>
+            <span style={{color:T.textMuted,fontSize:12}}>ข้อสอบโหลดจาก ML-300.md อัตโนมัติ</span>
+            <span style={{color:"#10b981",fontWeight:700,fontSize:12}}>✓ {allQ.length} ข้อพร้อมแล้ว</span>
+          </div>
+
+          {allQ.length>0?(
+            <>
+              {parseInfo&&(
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                  <span style={{color:T.textFaint,fontSize:11}}>{parseInfo}</span>
+                  {totalSkipped>0&&(
+                    <span style={{background:"#f59e0b20",color:"#f59e0b",borderRadius:5,padding:"1px 8px",fontSize:11,fontWeight:700}}>
+                      ⚠ {totalSkipped} block{totalSkipped!==1?"s":""} skipped
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <Card style={{padding:14,marginBottom:12}}>
+                <SectionLabel>Topics in File{loadedFiles.length>1?"s":""}</SectionLabel>
+                {Object.entries(categoriesBySubject).map(([subj,cats],si)=>{
+                  const multiSubj=Object.keys(categoriesBySubject).length>1;
+                  return(
+                    <div key={subj} style={{marginBottom:multiSubj&&si<Object.keys(categoriesBySubject).length-1?10:0}}>
+                      {multiSubj&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5,paddingBottom:4,borderBottom:`1px solid ${T.border}`}}>
+                        <span style={{fontSize:10}}>🗂</span>
+                        <span style={{color:T.text,fontSize:12,fontWeight:700}}>{subj}</span>
+                      </div>}
+                      {cats.map(c=>{
+                        const idx=categories.indexOf(c);
+                        const color=colorFor(idx<0?0:idx);
+                        const total=allQ.filter(q=>q.category===c).length;
+                        if(!total)return null;
+                        return(
+                          <div key={c} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,paddingLeft:multiSubj?10:0}}>
+                            <div style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}/>
+                            <span style={{color:T.textSub,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c}</span>
+                            <span style={{color:color,fontWeight:700,fontSize:12,flexShrink:0}}>{total}Q</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </Card>
+
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+                {[
+                  {label:"Selected",value:totalSelected,icon:"📋"},
+                  {label:"Topics",value:categories.filter(c=>catState[c]?.enabled&&allQ.filter(q=>q.category===c).length>0).length,icon:"📂"},
+                  {label:"Mode",value:timedMode?`${timePerQ}s/Q`:"Free",icon:"⏱"},
+                ].map(s=>(
+                  <Card key={s.label} style={{padding:"11px 8px",textAlign:"center"}}>
+                    <div style={{fontSize:16,marginBottom:2}}>{s.icon}</div>
+                    <div style={{color:T.text,fontWeight:800,fontSize:16}}>{s.value}</div>
+                    <div style={{color:T.textMuted,fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{s.label}</div>
+                  </Card>
+                ))}
+              </div>
+
+              <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+                <span style={{color:T.textFaint,fontSize:11,alignSelf:"center",marginRight:2}}>Preset:</span>
+                {[{label:"All",n:0},{label:"20/topic",n:20},{label:"10/topic",n:10},{label:"5/topic",n:5},{label:"3/topic",n:3}].map(p=>(
+                  <button key={p.label} onClick={()=>applyPreset(p.n)}
+                    style={{background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:7,color:T.textSub,fontSize:11,padding:"5px 12px",cursor:"pointer",fontWeight:600}}>
+                    {p.label}
+                  </button>
+                ))}
+                <button onClick={()=>{const allOn=domainStats.every(s=>catState[s.cat]?.enabled);setCatState(p=>{const n={...p};domainStats.forEach(({cat},i)=>{n[cat]={enabled:allOn?i===0:true,limit:p[cat]?.limit||1};});return n;});}}
+                  style={{background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:7,color:T.textSub,fontSize:11,padding:"5px 12px",cursor:"pointer",fontWeight:600,marginLeft:"auto"}}>
+                  {domainStats.every(s=>catState[s.cat]?.enabled)?"Deselect All":"Select All"}
+                </button>
+              </div>
+
+              <Card style={{padding:16,marginBottom:10}}>
+                <SectionLabel>Configure Topics</SectionLabel>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {Object.entries(categoriesBySubject).map(([subj,cats],si)=>{
+                    const multiSubj=Object.keys(categoriesBySubject).length>1;
+                    const allOn=cats.every(c=>catState[c]?.enabled&&allQ.filter(q=>q.category===c).length>0);
+                    return(
+                      <div key={subj}>
+                        {multiSubj&&(
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"6px 10px",background:T.insetBg,border:`1px solid ${T.borderSub}`,borderRadius:9}}>
+                            <span style={{fontSize:12}}>🗂</span>
+                            <span style={{color:T.text,fontWeight:700,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{subj}</span>
+                            <button onClick={()=>{
+                              setCatState(p=>{const n={...p};cats.forEach(c=>{const m=allQ.filter(q=>q.category===c).length;if(m>0)n[c]={...p[c],enabled:!allOn,limit:p[c]?.limit||m};});return n;});
+                            }} style={{background:allOn?"#ef444415":T.elevBg,border:`1px solid ${allOn?"#ef444440":T.borderSub}`,borderRadius:6,color:allOn?"#ef4444":T.textSub,fontSize:10,padding:"3px 10px",cursor:"pointer",fontWeight:700,flexShrink:0}}>
+                              {allOn?"Deselect All":"Select All"}
+                            </button>
+                          </div>
+                        )}
+                        <div style={{display:"flex",flexDirection:"column",gap:8,paddingLeft:multiSubj?8:0}}>
+                          {cats.map((c)=>{
+                            const i=categories.indexOf(c);
+                            const maxQ=allQ.filter(q=>q.category===c).length;
+                            if(maxQ===0)return null;
+                            const{enabled,limit}=catState[c]||{enabled:false,limit:0};
+                            const color=colorFor(i<0?0:i);
+                            return(<div key={c} style={{background:enabled?color+"10":T.insetBg,border:`1.5px solid ${enabled?color+"55":T.border}`,borderRadius:11,padding:"10px 12px",transition:"all 0.18s"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <button onClick={()=>toggleCat(c)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${enabled?color:T.borderSub}`,background:enabled?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",transition:"all 0.18s"}}>
+                                  {enabled&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+                                </button>
+                                <span style={{color:enabled?T.text:T.textFaint,fontWeight:600,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={c}>{c}</span>
+                                <span style={{color:T.textFaint,fontSize:11,marginRight:4,flexShrink:0}}>/{maxQ}</span>
+                                <Stepper value={limit} min={1} max={maxQ} onChange={v=>setLimit(c,v)} color={color} disabled={!enabled}/>
+                              </div>
+                              {enabled&&<div style={{marginTop:6}}>
+                                <ProgressBar value={limit} max={maxQ} color={color}/>
+                                <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
+                                  <span style={{color:T.textFaint,fontSize:10}}>{limit}Q selected</span>
+                                  <span style={{color:T.textFaint,fontSize:10}}>{Math.round((limit/maxQ)*100)}%</span>
+                                </div>
+                              </div>}
+                            </div>);
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                <Card style={{padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                  <div>
+                    <div style={{color:T.text,fontWeight:600,fontSize:13}}>Shuffle</div>
+                    <div style={{color:T.textMuted,fontSize:11}}>Random order</div>
+                  </div>
+                  <Toggle value={shuffleQ} onChange={setShuffleQ} label="Shuffle"/>
+                </Card>
+                <Card style={{padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                  <div>
+                    <div style={{color:T.text,fontWeight:600,fontSize:13}}>Timed</div>
+                    <div style={{color:T.textMuted,fontSize:11}}>{timedMode?`${timePerQ}s / question`:"No time limit"}</div>
+                  </div>
+                  <Toggle value={timedMode} onChange={setTimedMode} label="Timed"/>
+                </Card>
+              </div>
+
+              {timedMode&&(
+                <Card style={{padding:"10px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{color:T.textSub,fontSize:12,whiteSpace:"nowrap"}}>⏱ Time per Q</span>
+                  <input type="range" min={15} max={300} step={15} value={timePerQ} onChange={e=>setTimePerQ(+e.target.value)} style={{flex:1,accentColor:"#3b82f6",cursor:"pointer"}}/>
+                  <span style={{color:"#3b82f6",fontWeight:700,fontSize:13,width:46,textAlign:"right",flexShrink:0}}>{timePerQ}s</span>
+                </Card>
+              )}
+
+              <button onClick={()=>onStart({catState,shuffleQ,allQ,timedMode,timePerQ,categories})} disabled={!canStart}
+                style={{width:"100%",padding:"16px",background:canStart?"linear-gradient(135deg,#3b82f6,#6d28d9)":T.elevBg,border:"none",borderRadius:13,color:canStart?"#fff":T.textFaint,fontWeight:800,fontSize:16,cursor:canStart?"pointer":"not-allowed",letterSpacing:0.4,fontFamily:"'Sora',sans-serif",boxShadow:canStart?"0 8px 32px #3b82f644":"none",transition:"all 0.2s"}}>
+                🚀 Begin Exam — {totalSelected} Question{totalSelected!==1?"s":""}
+              </button>
+            </>
+          ):(
+            <div style={{textAlign:"center",padding:"12px 0 6px"}}>
+              <p style={{color:T.textFaint,fontSize:13,lineHeight:1.9,margin:"0 0 14px"}}>
+                Upload one or more <code style={{background:T.elevBg,borderRadius:4,padding:"2px 6px",color:T.textSub}}>.md</code> / <code style={{background:T.elevBg,borderRadius:4,padding:"2px 6px",color:T.textSub}}>.txt</code> question files above.
+              </p>
+              <Card style={{padding:14,textAlign:"left"}}>
+                <SectionLabel>Supported formats</SectionLabel>
+                {[
+                  ["SecExams PDF","Question #3 → A) opt B) opt (Correct Answer) C) opt"],
+                  ["## heading","## Question #NNN → options A–E → ### Correct Answer: **B**"],
+                  ["Numbered","### 1. Question? → A) opt → Answer: B"],
+                  ["Key-value","Q: text / A: opt / ANSWER: B / ---"],
+                  ["Answer: B","Simple format without 'Correct' prefix"],
+                  ["Multi-select","Correct Answer: BD  or  Correct Answer: B, D"],
+                  ["✅ marker","B) option ✅ (Correct Answer)"],
+                  ["Bold answer","**B** at end of question block"],
+                ].map(([t,ex])=>(
+                  <div key={t} style={{display:"flex",gap:8,marginBottom:6,alignItems:"flex-start"}}>
+                    <span style={{background:T.elevBg,borderRadius:4,padding:"1px 6px",fontSize:10,color:T.textSub,fontWeight:700,flexShrink:0,marginTop:1}}>{t}</span>
+                    <span style={{color:T.textFaint,fontSize:11,fontFamily:"monospace",lineHeight:1.5}}>{ex}</span>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          )}
+        </div>
+      </div>);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // QUESTION NAVIGATOR
+    // ─────────────────────────────────────────────────────────────────────────
+    const QuestionNav=memo(({questions,currentIdx,results,onJump,onClose})=>{
+      const{T}=useTheme();
+      const statusOf=(i)=>{
+        if(i===currentIdx)return"current";
+        const r=results[i];
+        if(r===undefined)return"unanswered";
+        return r.correct?"correct":"wrong";
+      };
+      const colors={current:"#3b82f6",correct:"#10b981",wrong:"#ef4444",unanswered:T.borderSub};
+      return(<div style={{position:"fixed",top:0,right:0,bottom:0,width:260,background:T.cardBg,borderLeft:`1px solid ${T.border}`,zIndex:200,display:"flex",flexDirection:"column",animation:"slideIn 0.22s ease"}}>
+        <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{color:T.text,fontWeight:700,fontSize:14}}>Question Navigator</span>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textMuted,fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+        <div style={{flex:1,overflow:"auto",padding:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5}}>
+            {questions.map((_,i)=>{
+              const s=statusOf(i); const c=colors[s];
+              return(<button key={i} onClick={()=>{onJump(i);onClose();}}
+                style={{aspectRatio:"1",borderRadius:7,border:`2px solid ${c}`,background:s==="current"?c:s==="unanswered"?T.insetBg:c+"22",color:s==="current"?"#fff":s==="unanswered"?T.textFaint:c,fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                {i+1}
+              </button>);
+            })}
+          </div>
+        </div>
+        <div style={{padding:"10px 16px",borderTop:`1px solid ${T.border}`,display:"flex",gap:8,fontSize:11}}>
+          {[["#10b981","Correct"],["#ef4444","Wrong"],["#64748b","Unanswered"]].map(([c,l])=>(
+            <div key={l} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+              <span style={{color:T.textFaint}}>{l}</span>
+            </div>
+          ))}
+        </div>
+      </div>);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // API KEY CONTEXT
+    // ─────────────────────────────────────────────────────────────────────────
+    const ApiKeyCtx = createContext({apiKey:"", setApiKey:()=>{}});
+    const useApiKey = () => useContext(ApiKeyCtx);
+
+    function ApiKeyModal({onClose,onSave}){
+      const{T}=useTheme();
+      const[input,setInput]=useState("");
+      const[show,setShow]=useState(false);
+      const[err,setErr]=useState("");
+      const handleSave=()=>{
+        const k=input.trim();
+        if(!k){setErr("กรุณากรอก API Key ก่อนครับ");return;}
+        if(!k.startsWith("sk-ant-")){setErr("Key ต้องขึ้นต้นด้วย sk-ant-...");return;}
+        onSave(k);onClose();
+      };
+      const steps=[
+        {n:1,icon:"🌐",title:"เปิด Anthropic Console",desc:"ไปที่",link:"https://console.anthropic.com",linkText:"console.anthropic.com"},
+        {n:2,icon:"🔑",title:"ไปที่เมนู API Keys",desc:"คลิกที่เมนู API Keys ในแถบซ้ายมือ"},
+        {n:3,icon:"➕",title:"สร้าง Key ใหม่",desc:'คลิกปุ่ม "Create Key" ตั้งชื่อตามต้องการ'},
+        {n:4,icon:"📋",title:"Copy Key",desc:"Key จะขึ้นต้นด้วย sk-ant-api03-... คลิก Copy แล้วนำมาวางด้านล่าง"},
+      ];
+      return(
+        <div style={{position:"fixed",inset:0,background:"#000a",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+          <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:20,width:"100%",maxWidth:480,maxHeight:"90vh",overflow:"auto",boxShadow:"0 24px 80px #0008"}}>
+            <div style={{padding:"20px 22px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:38,height:38,borderRadius:10,background:"#8b5cf620",border:"1px solid #8b5cf640",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🤖</div>
+                <div>
+                  <div style={{color:T.text,fontWeight:800,fontSize:15}}>AI Verify Setup</div>
+                  <div style={{color:T.textMuted,fontSize:11}}>ใส่ Anthropic API Key เพื่อใช้ฟีเจอร์นี้</div>
+                </div>
+              </div>
+              <button onClick={onClose} style={{background:"transparent",border:"none",color:T.textMuted,fontSize:20,cursor:"pointer",lineHeight:1,padding:4}}>✕</button>
+            </div>
+            <div style={{margin:"14px 22px 0",padding:"10px 14px",background:"#10b98110",border:"1px solid #10b98130",borderRadius:10,display:"flex",gap:8}}>
+              <span style={{fontSize:14,flexShrink:0}}>🔒</span>
+              <div style={{color:"#10b981",fontSize:12,lineHeight:1.7}}><strong>ความปลอดภัย:</strong> Key เก็บใน memory session นี้เท่านั้น ไม่มีการส่งออก และหายเมื่อปิด tab</div>
+            </div>
+            <div style={{padding:"16px 22px 0"}}>
+              <div style={{color:T.textMuted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>วิธีเอา API Key มาใส่</div>
+              {steps.map(s=>(
+                <div key={s.n} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"10px 12px",background:T.insetBg,borderRadius:11,border:`1px solid ${T.border}`,marginBottom:8}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",background:"#8b5cf620",border:"1.5px solid #8b5cf640",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0,fontWeight:800,color:"#8b5cf6"}}>{s.n}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                      <span style={{fontSize:13}}>{s.icon}</span>
+                      <span style={{color:T.text,fontWeight:700,fontSize:13}}>{s.title}</span>
+                    </div>
+                    <div style={{color:T.textSub,fontSize:12,lineHeight:1.6}}>
+                      {s.desc}{" "}{s.link&&<a href={s.link} target="_blank" rel="noopener noreferrer" style={{color:"#3b82f6",fontWeight:600,textDecoration:"none",borderBottom:"1px dashed #3b82f655"}}>{s.linkText} ↗</a>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{margin:"14px 22px 0",padding:"10px 14px",background:"#f59e0b10",border:"1px solid #f59e0b30",borderRadius:10}}>
+              <div style={{color:"#f59e0b",fontSize:12,lineHeight:1.7}}><strong>💰 ค่าใช้จ่าย:</strong> ~450–750 tokens ต่อครั้ง (~$0.001–0.002 USD)</div>
+            </div>
+            <div style={{padding:"16px 22px"}}>
+              <label style={{color:T.textSub,fontSize:12,fontWeight:600,display:"block",marginBottom:6}}>วาง API Key ที่นี่</label>
+              <div style={{position:"relative"}}>
+                <input type={show?"text":"password"} value={input} onChange={e=>{setInput(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&handleSave()} placeholder="sk-ant-api03-..."
+                  style={{width:"100%",padding:"11px 44px 11px 14px",background:T.insetBg,border:`1.5px solid ${err?"#ef4444":input.startsWith("sk-ant-")?"#10b981":T.border}`,borderRadius:10,color:T.text,fontSize:13,fontFamily:"monospace",outline:"none",boxSizing:"border-box"}}/>
+                <button onClick={()=>setShow(v=>!v)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"transparent",border:"none",color:T.textMuted,cursor:"pointer",fontSize:14,padding:0}}>{show?"🙈":"👁️"}</button>
+              </div>
+              {err&&<div style={{color:"#ef4444",fontSize:12,marginTop:6}}>⚠️ {err}</div>}
+              {input.startsWith("sk-ant-")&&!err&&<div style={{color:"#10b981",fontSize:12,marginTop:6}}>✓ รูปแบบ Key ถูกต้อง</div>}
+              <div style={{display:"flex",gap:8,marginTop:14}}>
+                <button onClick={onClose} style={{flex:1,padding:"11px",background:T.elevBg,border:`1px solid ${T.border}`,borderRadius:10,color:T.textSub,fontWeight:700,fontSize:13,cursor:"pointer"}}>ยกเลิก</button>
+                <button onClick={handleSave} disabled={!input.trim()}
+                  style={{flex:2,padding:"11px",background:input.trim()?"linear-gradient(135deg,#8b5cf6,#6d28d9)":T.elevBg,border:"none",borderRadius:10,color:input.trim()?"#fff":T.textFaint,fontWeight:700,fontSize:13,cursor:input.trim()?"pointer":"not-allowed",boxShadow:input.trim()?"0 4px 16px #8b5cf633":"none"}}>
+                  🔑 บันทึก Key และเริ่มใช้งาน
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // AI VERIFY
+    // ─────────────────────────────────────────────────────────────────────────
+    function AIVerify({q,T}){
+      const{apiKey,setApiKey}=useApiKey();
+      const[status,setStatus]=useState("idle");
+      const[result,setResult]=useState(null);
+      const[showKeyModal,setShowKeyModal]=useState(false);
+      const[errMsg,setErrMsg]=useState("");
+
+      const runVerify=async(key)=>{
+        setStatus("loading");setResult(null);setErrMsg("");
+        try{
+          const optionsText=q.options.map(o=>`${o.key}) ${o.text}`).join("\n");
+          const prompt=`You are a Microsoft certification exam expert. Carefully analyze this exam question and determine the correct answer(s).\n\nQUESTION:\n${q.question}\n\nOPTIONS:\n${optionsText}\n\nThe answer key says: ${q.answers.join(", ")}${q.explanation?`\nProvided explanation: ${q.explanation}`:""}\n\nYour task:\n1. Determine the correct answer(s) based on your knowledge\n2. State your confidence: High / Medium / Low\n3. Agree or disagree with the answer key, and explain why.\n\nRespond ONLY with valid JSON (no markdown fences):\n{\n  "aiAnswers": ["B"],\n  "agrees": true,\n  "confidence": "High",\n  "reasoning": "2-3 sentence explanation."\n}`;
+          const res=await fetch("https://api.anthropic.com/v1/messages",{
+            method:"POST",
+            headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+            body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:600,messages:[{role:"user",content:prompt}]})
+          });
+          const data=await res.json();
+          if(data.error){
+            const msg=data.error.message||"API error";
+            if(msg.toLowerCase().includes("auth")||res.status===401){setErrMsg("API Key ไม่ถูกต้องหรือหมดอายุ");setApiKey("");}
+            else{setErrMsg(msg);}
+            setStatus("error");return;
+          }
+          const text=(data.content||[]).map(b=>b.text||"").join("").trim();
+          const parsed=JSON.parse(text.replace(/```json|```/g,"").trim());
+          setResult(parsed);setStatus("done");
+        }catch(err){setErrMsg("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");setStatus("error");}
+      };
+
+      const handleClickVerify=()=>{if(!apiKey){setShowKeyModal(true);return;}runVerify(apiKey);};
+      const handleKeySaved=(key)=>{setApiKey(key);runVerify(key);};
+
+      if(status==="idle") return(
+        <>
+          <div style={{marginBottom:12}}>
+            {apiKey&&<div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,marginBottom:6}}>
+              <span style={{fontSize:10,color:"#10b981"}}>🔑 API Key พร้อมใช้งาน</span>
+              <button onClick={()=>setApiKey("")} style={{background:"transparent",border:"none",color:"#ef4444",fontSize:10,cursor:"pointer",textDecoration:"underline",padding:0}}>ลบ Key</button>
+            </div>}
+            <button onClick={handleClickVerify}
+              style={{width:"100%",padding:"10px 14px",background:"transparent",border:"1.5px dashed #8b5cf655",borderRadius:11,color:"#8b5cf6",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}
+              onMouseOver={e=>{e.currentTarget.style.background="#8b5cf611";e.currentTarget.style.borderColor="#8b5cf6aa";}}
+              onMouseOut={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor="#8b5cf655";}}>
+              <span style={{fontSize:16}}>🤖</span>
+              {apiKey?"AI Verify — Double-check this answer":"AI Verify — ใส่ API Key เพื่อใช้งาน"}
+            </button>
+          </div>
+          {showKeyModal&&<ApiKeyModal onClose={()=>setShowKeyModal(false)} onSave={handleKeySaved}/>}
+        </>
+      );
+
+      if(status==="loading") return(
+        <div style={{marginBottom:12,padding:"14px 18px",background:"#8b5cf608",border:"1.5px solid #8b5cf633",borderRadius:13,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:18,height:18,borderRadius:"50%",border:"2.5px solid #8b5cf644",borderTopColor:"#8b5cf6",animation:"spin 0.8s linear infinite",flexShrink:0}}/>
+          <span style={{color:"#8b5cf6",fontSize:13,fontWeight:600}}>Claude กำลังวิเคราะห์คำตอบ…</span>
+        </div>
+      );
+
+      if(status==="error") return(
+        <>
+          <div style={{marginBottom:12,padding:"12px 16px",background:"#ef444410",border:"1.5px solid #ef444440",borderRadius:13,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{color:"#ef4444",fontSize:13,flex:1}}>⚠️ {errMsg||"ไม่สามารถวิเคราะห์ได้"}</span>
+            <div style={{display:"flex",gap:8}}>
+              {!apiKey&&<button onClick={()=>setShowKeyModal(true)} style={{background:"#ef444420",border:"1px solid #ef444440",borderRadius:7,color:"#ef4444",fontSize:12,cursor:"pointer",padding:"4px 10px",fontWeight:600}}>🔑 ใส่ Key ใหม่</button>}
+              <button onClick={()=>setStatus("idle")} style={{background:"transparent",border:"1px solid #ef444440",borderRadius:7,color:"#ef4444",fontSize:12,cursor:"pointer",padding:"4px 10px"}}>ปิด</button>
+            </div>
+          </div>
+          {showKeyModal&&<ApiKeyModal onClose={()=>setShowKeyModal(false)} onSave={handleKeySaved}/>}
+        </>
+      );
+
+      if(status==="done"&&result){
+        const agrees=result.agrees;
+        const bc=agrees?"#10b981":"#f59e0b";
+        const tc=agrees?"#10b981":"#f59e0b";
+        const confColor=result.confidence==="High"?"#10b981":result.confidence==="Medium"?"#f59e0b":"#ef4444";
+        return(
+          <div style={{marginBottom:12,padding:"14px 18px",background:agrees?"#10b98108":"#f59e0b08",border:`1.5px solid ${bc}44`,borderRadius:13,animation:"fadeIn 0.3s ease"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+              <span style={{fontSize:15}}>🤖</span>
+              <span style={{color:tc,fontWeight:800,fontSize:14}}>AI Analysis</span>
+              <span style={{background:agrees?"#10b98120":"#f59e0b20",color:tc,border:`1px solid ${bc}66`,borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700}}>{agrees?"✅ เฉลยถูกต้อง":"⚠️ เฉลยอาจผิด"}</span>
+              <span style={{background:confColor+"20",color:confColor,border:`1px solid ${confColor}44`,borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700,marginLeft:"auto"}}>Confidence: {result.confidence}</span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <div style={{background:T.insetBg,borderRadius:9,padding:"9px 12px"}}>
+                <div style={{color:T.textFaint,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>📋 Answer Key</div>
+                <div style={{color:T.text,fontWeight:800,fontSize:15}}>{q.answers.join(", ")}</div>
+              </div>
+              <div style={{background:agrees?"#10b98112":"#f59e0b12",borderRadius:9,padding:"9px 12px",border:`1px solid ${bc}33`}}>
+                <div style={{color:T.textFaint,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>🤖 AI Answer</div>
+                <div style={{color:tc,fontWeight:800,fontSize:15}}>{(result.aiAnswers||[]).join(", ")}</div>
+              </div>
+            </div>
+            <div style={{color:T.textSub,fontSize:13,lineHeight:1.8,borderTop:`1px solid ${bc}22`,paddingTop:10}}>
+              <span style={{color:T.textMuted,fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:0.5}}>Reasoning: </span>
+              {result.reasoning}
+            </div>
+            <button onClick={()=>setStatus("idle")} style={{marginTop:10,background:"transparent",border:"none",color:T.textFaint,fontSize:11,cursor:"pointer",textDecoration:"underline",padding:0}}>🔄 Re-verify</button>
+          </div>
+        );
+      }
+      return null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXAM SCREEN
+    // ─────────────────────────────────────────────────────────────────────────
+    function ExamScreen({questions,timedMode,timePerQ,onFinish,onBack}){
+      const{T}=useTheme();
+      const[idx,setIdx]=useState(0);
+      const[selected,setSelected]=useState(new Set());
+      const[submitted,setSubmitted]=useState(false);
+      const[results,setResults]=useState({});
+      const[elapsed,setElapsed]=useState(0);
+      const[qTimer,setQTimer]=useState(timePerQ);
+      const[showNav,setShowNav]=useState(false);
+      const[confirmBack,setConfirmBack]=useState(false);
+      const timerRef=useRef(null);
+      const qTimerRef=useRef(null);
+
+      const q=questions[idx];
+      const isMulti=q.type==="multi";
+      const correctSet=useMemo(()=>new Set(q.answers),[q]);
+      const correctSoFar=useMemo(()=>Object.values(results).filter(r=>r.correct).length,[results]);
+      const answeredCount=useMemo(()=>Object.keys(results).length,[results]);
+
+      useEffect(()=>{timerRef.current=setInterval(()=>setElapsed(e=>e+1),1000);return()=>clearInterval(timerRef.current);},[]);
+
+      useEffect(()=>{
+        if(!timedMode)return;
+        setQTimer(timePerQ);
+        qTimerRef.current=setInterval(()=>{
+          setQTimer(t=>{
+            if(t<=1){clearInterval(qTimerRef.current);handleAutoSubmit();return 0;}
+            return t-1;
+          });
+        },1000);
+        return()=>clearInterval(qTimerRef.current);
+      },[idx,timedMode,timePerQ]);// eslint-disable-line
+
+      const handleAutoSubmit=useCallback(()=>{
+        if(submitted)return;
+        const correct=selected.size>0&&isAnswerCorrect();
+        setSubmitted(true);
+        setResults(p=>({...p,[idx]:{correct,category:q.category}}));
+      },[submitted,selected,idx,q]);// eslint-disable-line
+
+      const isAnswerCorrect=useCallback(()=>{
+        if(isMulti){if(selected.size!==correctSet.size)return false;for(const k of selected)if(!correctSet.has(k))return false;return true;}
+        return selected.has(q.answer);
+      },[isMulti,selected,correctSet,q]);
+
+      const toggleOption=useCallback((key)=>{
+        if(submitted)return;
+        if(isMulti){setSelected(p=>{const n=new Set(p);n.has(key)?n.delete(key):n.add(key);return n;});}
+        else{setSelected(new Set([key]));}
+      },[submitted,isMulti]);
+
+      const handleSubmit=useCallback(()=>{
+        if(!selected.size&&!timedMode)return;
+        clearInterval(qTimerRef.current);
+        const correct=isAnswerCorrect();
+        setSubmitted(true);
+        setResults(p=>({...p,[idx]:{correct,category:q.category}}));
+      },[selected,timedMode,isAnswerCorrect,idx,q]);
+
+      const goNext=useCallback(()=>{
+        if(idx+1>=questions.length){clearInterval(timerRef.current);clearInterval(qTimerRef.current);onFinish({results,elapsed});}
+        else{setIdx(i=>i+1);setSelected(new Set());setSubmitted(false);}
+      },[idx,questions.length,results,elapsed,onFinish]);
+
+      const goPrev=useCallback(()=>{
+        if(idx>0){setIdx(i=>i-1);setSelected(new Set());setSubmitted(false);}
+      },[idx]);
+
+      const handleSkip=useCallback(()=>{
+        clearInterval(qTimerRef.current);
+        if(!submitted){setResults(p=>({...p,[idx]:{correct:false,category:q.category,skipped:true}}));}
+        goNext();
+      },[submitted,idx,q,goNext]);
+
+      const handleReset=useCallback(()=>{
+        clearInterval(qTimerRef.current);
+        setSelected(new Set());setSubmitted(false);
+        setResults(p=>{const n={...p};delete n[idx];return n;});
+      },[idx]);
+
+      const jumpTo=useCallback((i)=>{setIdx(i);setSelected(new Set());setSubmitted(false);},[]);
+
+      useEffect(()=>{
+        const handler=(e)=>{
+          if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+          if(/^[A-Ea-e]$/.test(e.key)&&!submitted){
+            const key=e.key.toUpperCase();
+            if(q.options.find(o=>o.key===key))toggleOption(key);
+          }
+          if((e.key==="Enter"||e.key===" ")&&e.target.tagName!=="BUTTON"){
+            e.preventDefault();
+            if(!submitted&&selected.size)handleSubmit();
+            else if(submitted)goNext();
+          }
+          if(e.key==="ArrowLeft")goPrev();
+          if(e.key==="ArrowRight"&&submitted)goNext();
+        };
+        window.addEventListener("keydown",handler);
+        return()=>window.removeEventListener("keydown",handler);
+      },[submitted,selected,q,toggleOption,handleSubmit,goNext,goPrev]);
+
+      const stateOf=useCallback((key)=>{
+        if(!submitted)return selected.has(key)?"sel":"idle";
+        if(correctSet.has(key))return"correct";
+        if(selected.has(key))return"wrong";
+        return"idle";
+      },[submitted,selected,correctSet]);
+
+      const wasCorrect=submitted&&isAnswerCorrect();
+      const catIdx=useMemo(()=>{const cats=extractCategories(questions);return cats.indexOf(q.category);},[questions,q]);
+      const domainColor=colorFor(catIdx<0?0:catIdx);
+      const exStyle=wasCorrect?T.exCorrect:T.exWrong;
+      const timerPct=timedMode?qTimer/timePerQ:1;
+      const timerColor=timerPct<0.25?T.timerWarn:timerPct<0.5?"#f59e0b":T.timerOk;
+
+      return(<div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+        <div style={{background:T.topbar,borderBottom:`1px solid ${T.topbarBorder}`,backdropFilter:"blur(12px)",padding:"8px 16px",display:"flex",alignItems:"center",gap:8,position:"sticky",top:0,zIndex:10,flexWrap:"wrap"}}>
+          <button onClick={()=>setConfirmBack(true)} style={{background:T.elevBg,border:`1px solid ${T.border}`,borderRadius:8,color:T.textSub,fontSize:12,padding:"5px 10px",cursor:"pointer",fontWeight:600,flexShrink:0}}>← Back</button>
+          <span style={{color:T.borderSub}}>|</span>
+          <span style={{color:"#3b82f6",fontWeight:900,fontSize:12,fontFamily:"'Sora',sans-serif",flexShrink:0}}>PL-300 Exam</span>
+          <span style={{color:T.textMuted,fontSize:12,flexShrink:0}}>Q {idx+1}/{questions.length}</span>
+          <div style={{flex:1}}/>
+          <span style={{color:correctSoFar>0?"#10b981":T.textFaint,fontSize:12,fontWeight:600,flexShrink:0}}>
+            ✓ {correctSoFar}{answeredCount>0&&<span style={{color:T.textMuted,fontWeight:400}}> · {Math.round((correctSoFar/answeredCount)*100)}%</span>}
+          </span>
+          <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:8,padding:"4px 10px",fontFamily:"monospace",fontSize:12,color:T.textSub,flexShrink:0}}>⏱ {formatTime(elapsed)}</div>
+          <button onClick={()=>setShowNav(v=>!v)} style={{background:T.elevBg,border:`1px solid ${T.border}`,borderRadius:8,color:T.textSub,fontSize:12,padding:"5px 10px",cursor:"pointer",fontWeight:600,flexShrink:0}}>
+            ☰ {answeredCount}/{questions.length}
+          </button>
+        </div>
+
+        <div style={{background:T.topbar,padding:"4px 16px 0"}}>
+          <ProgressBar value={answeredCount} max={questions.length}/>
+          {timedMode&&!submitted&&<div style={{marginTop:2}}><ProgressBar value={qTimer} max={timePerQ} color={timerColor} thin/></div>}
+        </div>
+
+        <div style={{flex:1,padding:"18px 16px 100px",maxWidth:840,margin:"0 auto",width:"100%"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+            <span style={{background:domainColor+"20",color:domainColor,border:`1px solid ${domainColor}40`,borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:0.4,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{q.category}</span>
+            <span style={{background:(isMulti?"#f59e0b":"#3b82f6")+"20",color:isMulti?"#f59e0b":"#3b82f6",border:`1px solid ${isMulti?"#f59e0b":"#3b82f6"}40`,borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700}}>
+              {isMulti?`Multi-Select (${q.answers.length} answers)`:"Single Choice"}
+            </span>
+            {timedMode&&!submitted&&(
+              <span style={{background:timerColor+"20",color:timerColor,border:`1px solid ${timerColor}40`,borderRadius:6,padding:"2px 9px",fontSize:11,fontWeight:700,marginLeft:"auto",flexShrink:0}}>⏱ {qTimer}s</span>
+            )}
+          </div>
+
+          <Card style={{padding:"18px 20px",marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+              <span style={{color:T.textFaint,fontSize:11}}>Q{idx+1}/{questions.length}</span>
+              <span style={{color:T.borderSub,fontSize:11}}>·</span>
+              <span style={{background:"#3b82f615",color:"#3b82f6",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700}}>
+                ต้นฉบับ #{q.originalNum??q.num}
+              </span>
+              {q.sourceFile&&(
+                <span style={{color:T.textFaint,fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={q.sourceFile}>
+                  📄 {q.sourceFile}
+                </span>
+              )}
+            </div>
+            <p style={{color:T.text,fontSize:"clamp(13px,2.3vw,15px)",lineHeight:1.9,margin:0,fontWeight:500}}>{q.question}</p>
+          </Card>
+
+          <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:18}}>
+            {q.options.map((opt)=>{
+              const s=T[stateOf(opt.key)];
+              return(<button key={opt.key} onClick={()=>toggleOption(opt.key)} disabled={submitted}
+                style={{display:"flex",alignItems:"flex-start",gap:11,background:s.bg,border:`1.5px solid ${s.border}`,borderRadius:11,padding:"11px 14px",cursor:submitted?"default":"pointer",transition:"all 0.16s",textAlign:"left",width:"100%"}}>
+                <span style={{width:26,height:26,borderRadius:isMulti?5:7,background:s.lBg,color:s.lText,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:12,flexShrink:0}}>
+                  {submitted&&correctSet.has(opt.key)?"✓":submitted&&selected.has(opt.key)&&!correctSet.has(opt.key)?"✗":opt.key}
+                </span>
+                <span style={{color:s.text,fontSize:14,lineHeight:1.75,paddingTop:3}}>{opt.text}</span>
+              </button>);
+            })}
+          </div>
+
+          {!submitted&&(
+            <div style={{color:T.textFaint,fontSize:11,marginBottom:12,textAlign:"center"}}>
+              Press <kbd style={{background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:4,padding:"1px 5px",fontSize:10}}>A</kbd>–<kbd style={{background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:4,padding:"1px 5px",fontSize:10}}>E</kbd> to select · <kbd style={{background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:4,padding:"1px 5px",fontSize:10}}>Enter</kbd> to submit
+            </div>
+          )}
+
+          {submitted&&(
+            <div style={{background:exStyle.bg,border:`1.5px solid ${exStyle.border}`,borderRadius:13,padding:"14px 18px",marginBottom:16,animation:"fadeIn 0.25s ease"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
+                <span style={{fontSize:15}}>{wasCorrect?"✅":"❌"}</span>
+                <span style={{color:exStyle.title,fontWeight:800,fontSize:14}}>
+                  {wasCorrect?"Correct!":`Incorrect — Answer: ${q.answers.join(", ")}`}
+                </span>
+              </div>
+              <p style={{color:T.textSub,fontSize:13,lineHeight:1.85,margin:0}}>{q.explanation}</p>
+            </div>
+          )}
+          {submitted&&<AIVerify q={q} T={T}/>}
+
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={goPrev} disabled={idx===0}
+              style={{padding:"13px 16px",background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:11,color:idx===0?T.textFaint:T.textSub,fontWeight:700,fontSize:13,cursor:idx===0?"not-allowed":"pointer",flexShrink:0}}>
+              ← Prev
+            </button>
+            {!submitted?(
+              <>
+                <button onClick={handleSkip}
+                  style={{padding:"13px 14px",background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:11,color:T.textMuted,fontWeight:600,fontSize:13,cursor:"pointer",flexShrink:0}}>
+                  Skip »
+                </button>
+                <button onClick={handleSubmit} disabled={!selected.size}
+                  style={{flex:1,padding:"13px",background:selected.size?"linear-gradient(135deg,#3b82f6,#6d28d9)":T.elevBg,border:"none",borderRadius:11,color:selected.size?"#fff":T.textFaint,fontWeight:700,fontSize:15,cursor:selected.size?"pointer":"not-allowed",transition:"all 0.18s",fontFamily:"'Sora',sans-serif",boxShadow:selected.size?"0 4px 20px #3b82f633":"none"}}>
+                  Submit Answer
+                </button>
+              </>
+            ):(
+              <>
+                <button onClick={handleReset}
+                  style={{padding:"13px 14px",background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:11,color:T.textMuted,fontWeight:600,fontSize:13,cursor:"pointer",flexShrink:0}}>
+                  ↺ Redo
+                </button>
+                <button onClick={goNext}
+                  style={{flex:1,padding:"13px",background:"linear-gradient(135deg,#3b82f6,#6d28d9)",border:"none",borderRadius:11,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"'Sora',sans-serif",boxShadow:"0 4px 20px #3b82f633"}}>
+                  {idx+1>=questions.length?"Finish Exam →":"Next Question →"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {showNav&&<>
+          <div onClick={()=>setShowNav(false)} style={{position:"fixed",inset:0,background:"#0006",zIndex:199}}/>
+          <QuestionNav questions={questions} currentIdx={idx} results={results} onJump={jumpTo} onClose={()=>setShowNav(false)}/>
+        </>}
+
+        {confirmBack&&(
+          <div style={{position:"fixed",inset:0,background:"#0008",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <Card style={{padding:24,maxWidth:340,width:"100%",textAlign:"center"}}>
+              <div style={{fontSize:32,marginBottom:10}}>⚠️</div>
+              <div style={{color:T.text,fontWeight:700,fontSize:16,marginBottom:8}}>Exit Exam?</div>
+              <div style={{color:T.textSub,fontSize:13,marginBottom:20,lineHeight:1.6}}>Your progress will be lost. Return to setup screen?</div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={()=>setConfirmBack(false)} style={{flex:1,padding:"11px",background:T.elevBg,border:`1px solid ${T.border}`,borderRadius:10,color:T.textSub,fontWeight:700,fontSize:13,cursor:"pointer"}}>Stay</button>
+                <button onClick={()=>{clearInterval(timerRef.current);clearInterval(qTimerRef.current);onBack();}} style={{flex:1,padding:"11px",background:"#ef4444",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>Exit</button>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RESULTS SCREEN
+    // ─────────────────────────────────────────────────────────────────────────
+    function ResultsScreen({results,elapsed,questions,categories,onRestart}){
+      const{T}=useTheme();
+      const resultArr=useMemo(()=>Object.values(results),[results]);
+      const total=resultArr.length;
+      const correct=resultArr.filter(r=>r.correct).length;
+      const skipped=resultArr.filter(r=>r.skipped).length;
+      const accuracy=total?Math.round((correct/total)*100):0;
+      const passed=accuracy>=70;
+
+      const catStats=useMemo(()=>
+        categories.map((c,i)=>{
+          const cr=resultArr.filter(r=>r.category===c);
+          const cc=cr.filter(r=>r.correct).length;
+          return{cat:c,color:colorFor(i),total:cr.length,correct:cc,pct:cr.length?Math.round((cc/cr.length)*100):0};
+        }).filter(s=>s.total>0)
+      ,[categories,resultArr]);
+
+      const resultBg=passed?T.passBg:T.failBg;
+      const resultBorder=passed?T.passBorder:T.failBorder;
+      const resultColor=passed?"#10b981":"#ef4444";
+
+      return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px 16px 80px"}}>
+        <div style={{maxWidth:680,width:"100%"}}>
+          <div style={{textAlign:"center",marginBottom:26}}>
+            <div style={{fontSize:48,marginBottom:10}}>{passed?"🏆":"📚"}</div>
+            <h1 style={{fontSize:"clamp(22px,5vw,36px)",fontWeight:900,color:T.text,margin:"0 0 6px",fontFamily:"'Sora',sans-serif"}}>
+              {passed?"Exam Complete!":"Keep Studying!"}
+            </h1>
+            <p style={{color:T.textMuted,fontSize:14,margin:0}}>{passed?"Great work — you passed!":"Aim for 70%+ to pass."}</p>
+          </div>
+
+          <div style={{background:resultBg,border:`1.5px solid ${resultBorder}`,borderRadius:18,padding:24,marginBottom:14,textAlign:"center"}}>
+            <div style={{fontSize:"clamp(42px,10vw,62px)",fontWeight:900,color:resultColor,fontFamily:"'Sora',sans-serif",lineHeight:1}}>{accuracy}%</div>
+            <div style={{color:T.textMuted,fontSize:14,marginTop:5}}>{correct} correct · {total-correct-skipped} wrong · {skipped} skipped</div>
+            <div style={{marginTop:12}}><ProgressBar value={correct} max={total} color={resultColor}/></div>
+            <div style={{marginTop:4,fontSize:11,color:T.textFaint}}>Pass threshold: 70%</div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+            {[
+              {label:"Total Time",value:formatTime(elapsed),icon:"⏱"},
+              {label:"Avg / Q",value:`${total?Math.round(elapsed/total):0}s`,icon:"⚡"},
+              {label:"Score",value:`${accuracy}%`,icon:"🎯"},
+            ].map(s=>(
+              <Card key={s.label} style={{padding:12,textAlign:"center"}}>
+                <div style={{fontSize:16,marginBottom:2}}>{s.icon}</div>
+                <div style={{color:T.text,fontWeight:800,fontSize:16}}>{s.value}</div>
+                <div style={{color:T.textMuted,fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{s.label}</div>
+              </Card>
+            ))}
+          </div>
+
+          <Card style={{padding:18,marginBottom:16}}>
+            <SectionLabel>Performance by Topic</SectionLabel>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {catStats.map(s=>(
+                <div key={s.cat}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <span style={{color:T.text,fontSize:13,fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:8}} title={s.cat}>{s.cat}</span>
+                    <span style={{color:s.color,fontSize:13,fontWeight:700,flexShrink:0}}>{s.pct}% ({s.correct}/{s.total})</span>
+                  </div>
+                  <ProgressBar value={s.correct} max={s.total} color={s.color}/>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            <button onClick={()=>onRestart("same")} style={{padding:"13px 8px",background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:11,color:T.textSub,fontWeight:700,fontSize:13,cursor:"pointer"}}>↩ Retry</button>
+            <button onClick={()=>onRestart("reshuffle")} style={{padding:"13px 8px",background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:11,color:T.textSub,fontWeight:700,fontSize:13,cursor:"pointer"}}>🔀 Reshuffle</button>
+            <button onClick={()=>onRestart("home")} style={{padding:"13px 8px",background:"linear-gradient(135deg,#3b82f6,#6d28d9)",border:"none",borderRadius:11,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Sora',sans-serif"}}>🏠 New Setup</button>
+          </div>
+        </div>
+      </div>);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // APP ROOT
+    // ─────────────────────────────────────────────────────────────────────────
+    function App(){
+      const[isDark,setIsDark]=useState(true);
+      const T=isDark?DARK:LIGHT;
+      const toggleTheme=useCallback(()=>setIsDark(d=>!d),[]);
+      const[apiKey,setApiKey]=useState("");
+
+      const[screen,setScreen]=useState("home");
+      const[examQ,setExamQ]=useState([]);
+      const[examCategories,setExamCategories]=useState([]);
+      const[examResults,setExamResults]=useState({});
+      const[examElapsed,setExamElapsed]=useState(0);
+      const[examConfig,setExamConfig]=useState({timedMode:false,timePerQ:90});
+      const keyRef=useRef(0);
+
+      const handleStart=useCallback(({catState,shuffleQ,allQ,timedMode,timePerQ,categories})=>{
+        let qs=[];
+        (categories||[]).forEach(c=>{
+          const{enabled,limit}=catState[c]||{};
+          if(!enabled)return;
+          let cqs=allQ.filter(q=>q.category===c);
+          if(shuffleQ)cqs=shuffle(cqs);
+          qs=qs.concat(cqs.slice(0,limit));
+        });
+        if(shuffleQ)qs=shuffle(qs);
+        qs=qs.map((q,i)=>({...q,num:i+1}));
+        keyRef.current+=1;
+        setExamQ(qs);
+        setExamCategories(categories||extractCategories(qs));
+        setExamConfig({timedMode,timePerQ});
+        setScreen("exam");
+      },[]);
+
+      const handleFinish=useCallback(({results,elapsed})=>{
+        setExamResults(results);setExamElapsed(elapsed);setScreen("results");
+      },[]);
+
+      const handleBack=useCallback(()=>setScreen("home"),[]);
+
+      const handleRestart=useCallback((mode)=>{
+        if(mode==="home"){setScreen("home");return;}
+        if(mode==="reshuffle"){keyRef.current+=1;setExamQ(p=>shuffle([...p]).map((q,i)=>({...q,num:i+1})));}
+        setExamResults({});setScreen("exam");
+      },[]);
+
+      return(<ApiKeyCtx.Provider value={{apiKey,setApiKey}}>
+      <ThemeCtx.Provider value={{T,toggleTheme}}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&display=swap');
+          *,*::before,*::after{box-sizing:border-box}
+          html,body{margin:0;padding:0}
+          body{background:${T.pageBg};font-family:'Sora',system-ui,sans-serif;color:${T.text};-webkit-font-smoothing:antialiased;transition:background 0.3s,color 0.3s;}
+          button{font-family:inherit}
+          ::-webkit-scrollbar{width:5px}
+          ::-webkit-scrollbar-track{background:${T.scrollTrack}}
+          ::-webkit-scrollbar-thumb{background:${T.scrollThumb};border-radius:3px}
+          @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+          @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+          @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+          body::before{content:'';position:fixed;inset:0;background-image:${T.grid==="none"?"none":T.grid};background-size:44px 44px;pointer-events:none;z-index:0;transition:background-image 0.3s;opacity:${T.mode==="light"?0:1};}
+          #root{position:relative;z-index:1}
+          kbd{display:inline-block}
+        `}</style>
+        {screen==="home"    && <HomeScreen onStart={handleStart}/>}
+        {screen==="exam"    && <ExamScreen key={keyRef.current} questions={examQ} timedMode={examConfig.timedMode} timePerQ={examConfig.timePerQ} onFinish={handleFinish} onBack={handleBack}/>}
+        {screen==="results" && <ResultsScreen results={examResults} elapsed={examElapsed} questions={examQ} categories={examCategories} onRestart={handleRestart}/>}
+        <ThemeToggle/>
+      </ThemeCtx.Provider>
+      </ApiKeyCtx.Provider>);
+    }
+
+    // Mount
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App/>);
+  </script>
+</body>
+</html>
