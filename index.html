@@ -425,7 +425,7 @@
     // ─────────────────────────────────────────────────────────────────────────
     // UPLOAD ZONE
     // ─────────────────────────────────────────────────────────────────────────
-    const UploadZone = memo(({loadedFiles,onAddFiles,onRemoveFile})=>{
+    const UploadZone = memo(({loadedFiles,onAddFiles,onRemoveFile,subjects,onSubjectChange})=>{
       const{T}=useTheme();
       const[dragging,setDragging]=useState(false);
       const[error,setError]=useState("");
@@ -510,12 +510,28 @@
         {hasFiles&&(
           <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:5}}>
             {loadedFiles.map((f,i)=>(
-              <div key={f.name+i} style={{display:"flex",alignItems:"center",gap:8,background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:9,padding:"6px 10px"}}>
-                <span style={{fontSize:13}}>📄</span>
-                <span style={{color:T.textSub,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={f.name}>{f.name}</span>
-                <span style={{background:"#10b98120",color:"#10b981",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700,flexShrink:0}}>{f.count}Q</span>
-                {f.skipped>0&&<span style={{background:"#f59e0b20",color:"#f59e0b",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700,flexShrink:0}} title="Blocks skipped">⚠ {f.skipped}</span>}
-                <button onClick={e=>{e.stopPropagation();onRemoveFile(f.name);}} style={{background:"transparent",border:"none",color:T.textFaint,fontSize:14,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Remove this file">✕</button>
+              <div key={f.name+i} style={{display:"flex",flexDirection:"column",background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:9,padding:"6px 10px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:13}}>📄</span>
+                  <span style={{color:T.textSub,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={f.name}>{f.name}</span>
+                  <span style={{background:"#10b98120",color:"#10b981",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700,flexShrink:0}}>{f.count}Q</span>
+                  {f.skipped>0&&<span style={{background:"#f59e0b20",color:"#f59e0b",borderRadius:5,padding:"1px 7px",fontSize:11,fontWeight:700,flexShrink:0}} title="Blocks skipped">⚠ {f.skipped}</span>}
+                  <button onClick={e=>{e.stopPropagation();onRemoveFile(f.name);}} style={{background:"transparent",border:"none",color:T.textFaint,fontSize:14,cursor:"pointer",padding:"0 2px",lineHeight:1}} title="Remove this file">✕</button>
+                </div>
+                {onSubjectChange&&(
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5}} onClick={e=>e.stopPropagation()}>
+                    <span style={{color:T.textFaint,fontSize:10,flexShrink:0}}>🗂 หมวดหมู่:</span>
+                    <input
+                      type="text"
+                      value={subjects?.[f.name]??f.name.replace(/\.[^.]+$/,"")}
+                      onChange={e=>{e.stopPropagation();onSubjectChange(f.name,e.target.value);}}
+                      onClick={e=>e.stopPropagation()}
+                      onFocus={e=>e.stopPropagation()}
+                      placeholder="ชื่อวิชา / หมวดหมู่"
+                      style={{flex:1,background:T.elevBg,border:`1px solid ${T.borderSub}`,borderRadius:6,color:T.text,fontSize:11,padding:"3px 8px",outline:"none",fontFamily:"inherit",minWidth:0}}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -531,6 +547,7 @@
       const{T}=useTheme();
       const[allQ,setAllQ]=useState([]);
       const[loadedFiles,setLoadedFiles]=useState([]);
+      const[subjects,setSubjects]=useState({});
       const[shuffleQ,setShuffleQ]=useState(true);
       const[timedMode,setTimedMode]=useState(false);
       const[timePerQ,setTimePerQ]=useState(90);
@@ -563,12 +580,16 @@
           }
           return next;
         });
+        setSubjects(prev=>{const n={...prev};for(const{name}of results){if(!n[name])n[name]=name.replace(/\.[^.]+$/,"");}return n;});
       },[]);
 
       const handleRemoveFile = useCallback((fname) => {
         setAllQ(prev => prev.filter(q=>q.sourceFile!==fname).map((q,i)=>({...q,id:i+1,num:i+1})));
         setLoadedFiles(prev=>prev.filter(f=>f.name!==fname));
+        setSubjects(prev=>{const n={...prev};delete n[fname];return n;});
       },[]);
+
+      const handleSubjectChange=useCallback((fname,subj)=>setSubjects(prev=>({...prev,[fname]:subj})),[]);
 
       useEffect(()=>{
         const cats = extractCategories(allQ);
@@ -584,6 +605,16 @@
 
       const totalSelected=useMemo(()=>categories.reduce((sum,c)=>!catState[c]?.enabled?sum:sum+(catState[c]?.limit||0),0),[categories,catState]);
       const domainStats=useMemo(()=>categories.map((c,i)=>({cat:c,color:colorFor(i),total:allQ.filter(q=>q.category===c).length})).filter(s=>s.total>0),[categories,allQ]);
+      const categoriesBySubject=useMemo(()=>{
+        const g={};
+        categories.forEach(c=>{
+          const files=[...new Set(allQ.filter(q=>q.category===c).map(q=>q.sourceFile).filter(Boolean))];
+          const subj=files.map(f=>subjects[f]||f.replace(/\.[^.]+$/,"")).filter(Boolean)[0]||"General";
+          if(!g[subj])g[subj]=[];
+          if(!g[subj].includes(c))g[subj].push(c);
+        });
+        return g;
+      },[categories,allQ,subjects]);
       const canStart=totalSelected>0&&allQ.length>0;
       const totalSkipped=loadedFiles.reduce((s,f)=>s+(f.skipped||0),0);
       const parseInfo=useMemo(()=>allQ.length?`${allQ.filter(q=>q.type==="multi").length} multi · ${allQ.filter(q=>q.type==="mc").length} single · ${categories.length} topic${categories.length!==1?"s":""}`:"",[allQ,categories]);
@@ -614,7 +645,7 @@
           </div>
 
           <div style={{marginBottom:8}}>
-            <UploadZone loadedFiles={loadedFiles} onAddFiles={handleAddFiles} onRemoveFile={handleRemoveFile}/>
+            <UploadZone loadedFiles={loadedFiles} onAddFiles={handleAddFiles} onRemoveFile={handleRemoveFile} subjects={subjects} onSubjectChange={handleSubjectChange}/>
           </div>
 
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,padding:"7px 14px",background:T.insetBg,border:`1px solid ${T.border}`,borderRadius:10}}>
@@ -641,13 +672,30 @@
 
               <Card style={{padding:14,marginBottom:12}}>
                 <SectionLabel>Topics in File{loadedFiles.length>1?"s":""}</SectionLabel>
-                {domainStats.map(({cat,color,total})=>(
-                  <div key={cat} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}/>
-                    <span style={{color:T.textSub,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cat}</span>
-                    <span style={{color:color,fontWeight:700,fontSize:12,flexShrink:0}}>{total}Q</span>
-                  </div>
-                ))}
+                {Object.entries(categoriesBySubject).map(([subj,cats],si)=>{
+                  const multiSubj=Object.keys(categoriesBySubject).length>1;
+                  return(
+                    <div key={subj} style={{marginBottom:multiSubj&&si<Object.keys(categoriesBySubject).length-1?10:0}}>
+                      {multiSubj&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5,paddingBottom:4,borderBottom:`1px solid ${T.border}`}}>
+                        <span style={{fontSize:10}}>🗂</span>
+                        <span style={{color:T.text,fontSize:12,fontWeight:700}}>{subj}</span>
+                      </div>}
+                      {cats.map(c=>{
+                        const idx=categories.indexOf(c);
+                        const color=colorFor(idx<0?0:idx);
+                        const total=allQ.filter(q=>q.category===c).length;
+                        if(!total)return null;
+                        return(
+                          <div key={c} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6,paddingLeft:multiSubj?10:0}}>
+                            <div style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}/>
+                            <span style={{color:T.textSub,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c}</span>
+                            <span style={{color:color,fontWeight:700,fontSize:12,flexShrink:0}}>{total}Q</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </Card>
 
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
@@ -680,29 +728,51 @@
 
               <Card style={{padding:16,marginBottom:10}}>
                 <SectionLabel>Configure Topics</SectionLabel>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {categories.map((c,i)=>{
-                    const maxQ=allQ.filter(q=>q.category===c).length;
-                    if(maxQ===0)return null;
-                    const{enabled,limit}=catState[c]||{enabled:false,limit:0};
-                    const color=colorFor(i);
-                    return(<div key={c} style={{background:enabled?color+"10":T.insetBg,border:`1.5px solid ${enabled?color+"55":T.border}`,borderRadius:11,padding:"10px 12px",transition:"all 0.18s"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <button onClick={()=>toggleCat(c)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${enabled?color:T.borderSub}`,background:enabled?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",transition:"all 0.18s"}}>
-                          {enabled&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
-                        </button>
-                        <span style={{color:enabled?T.text:T.textFaint,fontWeight:600,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={c}>{c}</span>
-                        <span style={{color:T.textFaint,fontSize:11,marginRight:4,flexShrink:0}}>/{maxQ}</span>
-                        <Stepper value={limit} min={1} max={maxQ} onChange={v=>setLimit(c,v)} color={color} disabled={!enabled}/>
-                      </div>
-                      {enabled&&<div style={{marginTop:6}}>
-                        <ProgressBar value={limit} max={maxQ} color={color}/>
-                        <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
-                          <span style={{color:T.textFaint,fontSize:10}}>{limit}Q selected</span>
-                          <span style={{color:T.textFaint,fontSize:10}}>{Math.round((limit/maxQ)*100)}%</span>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {Object.entries(categoriesBySubject).map(([subj,cats],si)=>{
+                    const multiSubj=Object.keys(categoriesBySubject).length>1;
+                    const allOn=cats.every(c=>catState[c]?.enabled&&allQ.filter(q=>q.category===c).length>0);
+                    return(
+                      <div key={subj}>
+                        {multiSubj&&(
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,padding:"6px 10px",background:T.insetBg,border:`1px solid ${T.borderSub}`,borderRadius:9}}>
+                            <span style={{fontSize:12}}>🗂</span>
+                            <span style={{color:T.text,fontWeight:700,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{subj}</span>
+                            <button onClick={()=>{
+                              setCatState(p=>{const n={...p};cats.forEach(c=>{const m=allQ.filter(q=>q.category===c).length;if(m>0)n[c]={...p[c],enabled:!allOn,limit:p[c]?.limit||m};});return n;});
+                            }} style={{background:allOn?"#ef444415":T.elevBg,border:`1px solid ${allOn?"#ef444440":T.borderSub}`,borderRadius:6,color:allOn?"#ef4444":T.textSub,fontSize:10,padding:"3px 10px",cursor:"pointer",fontWeight:700,flexShrink:0}}>
+                              {allOn?"Deselect All":"Select All"}
+                            </button>
+                          </div>
+                        )}
+                        <div style={{display:"flex",flexDirection:"column",gap:8,paddingLeft:multiSubj?8:0}}>
+                          {cats.map((c)=>{
+                            const i=categories.indexOf(c);
+                            const maxQ=allQ.filter(q=>q.category===c).length;
+                            if(maxQ===0)return null;
+                            const{enabled,limit}=catState[c]||{enabled:false,limit:0};
+                            const color=colorFor(i<0?0:i);
+                            return(<div key={c} style={{background:enabled?color+"10":T.insetBg,border:`1.5px solid ${enabled?color+"55":T.border}`,borderRadius:11,padding:"10px 12px",transition:"all 0.18s"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <button onClick={()=>toggleCat(c)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${enabled?color:T.borderSub}`,background:enabled?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",transition:"all 0.18s"}}>
+                                  {enabled&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}
+                                </button>
+                                <span style={{color:enabled?T.text:T.textFaint,fontWeight:600,fontSize:13,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={c}>{c}</span>
+                                <span style={{color:T.textFaint,fontSize:11,marginRight:4,flexShrink:0}}>/{maxQ}</span>
+                                <Stepper value={limit} min={1} max={maxQ} onChange={v=>setLimit(c,v)} color={color} disabled={!enabled}/>
+                              </div>
+                              {enabled&&<div style={{marginTop:6}}>
+                                <ProgressBar value={limit} max={maxQ} color={color}/>
+                                <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
+                                  <span style={{color:T.textFaint,fontSize:10}}>{limit}Q selected</span>
+                                  <span style={{color:T.textFaint,fontSize:10}}>{Math.round((limit/maxQ)*100)}%</span>
+                                </div>
+                              </div>}
+                            </div>);
+                          })}
                         </div>
-                      </div>}
-                    </div>);
+                      </div>
+                    );
                   })}
                 </div>
               </Card>
