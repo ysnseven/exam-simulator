@@ -1638,9 +1638,10 @@ Dataset permissions in the Power BI service control the level of access users ha
 
 Reference: https://docs.microsoft.com/en-us/power-bi/connect-data/service-datasets-permissions
 
+
 ## Question #89
 
-You have a CSV file that contains user complaints. The file contains a column named Logged. The column contains the date and time each complaint occurred. The data in Logged is in the following format: 2018-12-31 at 08:59.
+You have a CSV file that contains user complaints. The file contains a column named Logged. Logged contains the date and time each complaint occurred. The data in Logged is in the following format: 2018-12-31 at 08:59.
 You need to be able to analyze the complaints by the logged date and use a built-in date hierarchy.
 What should you do?
 
@@ -1652,21 +1653,18 @@ D) Apply the Parse function from the Date transformations options to the Logged 
 **Correct Answer: B**
 
 **Explanation:**
-Splitting using "at" as a delimiter creates two fields. Power BI automatically recognizes the date portion as a date type, enabling the built-in date hierarchy.
+Splitting using "at" as delimiter creates two fields. Power BI automatically recognizes the date portion as a Date type, enabling the built-in date hierarchy.
 
 ---
 
 ## Question #90 (HOTSPOT)
 
-You have a Power BI data model with a Sales table connected to Product and Date tables.
+You have a Power BI data model with Sales, Product, and Date tables.
 You need to create a measure to count the number of product categories that had products sold during a selected period.
 
 ```
 Product Categories Sold =
-CALCULATE (
-    [answer choice],
-    [answer choice]
-)
+CALCULATE ( [answer choice], [answer choice] )
 ```
 
 NOTE: Each correct selection is worth one point.
@@ -1676,14 +1674,14 @@ NOTE: Each correct selection is worth one point.
 - Second blank: 'Sales'
 
 **Explanation:**
-DISTINCTCOUNT('Product'[ProductCategory]) counts the number of unique product categories. Using 'Sales' as the filter context restricts the count to products that actually had sales.
+DISTINCTCOUNT('Product'[ProductCategory]) counts unique product categories. Using 'Sales' as the filter context limits the count to categories that have actual sales records in the selected period.
 
 ---
 
 ## Question #91 (HOTSPOT)
 
 You have three Azure SQL databases: db-powerbi-dev (dev.database.windows.net), db-powerbi-uat (uat.database.windows.net), db-powerbi-prod (prod.database.windows.net).
-You plan to build a single PBIX file to consume data from each stage. Power BI deployment pipelines must NOT be used. The solution must minimize administrative effort.
+You plan to build a single PBIX file to consume data from each stage without using Power BI deployment pipelines. The solution must minimize administrative effort.
 NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
@@ -1691,13 +1689,13 @@ NOTE: Each correct selection is worth one point.
 - Parameter type: Text
 
 **Explanation:**
-A single Text parameter holds the server URL. In Power Query, use the parameter value concatenated with the database name. Change the parameter value to switch environments without maintaining multiple PBIX files.
+A single Text parameter holds the server URL. Change the parameter value to switch between dev, uat, and prod environments without maintaining separate PBIX files.
 
 ---
 
 ## Question #92
 
-You are creating a Country dimension from a table with columns: Country, City.
+You are creating a Country dimension from source data with columns: Country, City.
 You need the dimension to contain a list of unique countries.
 Which two actions should you perform? Each correct answer presents part of the solution.
 NOTE: Each correct selection is worth one point.
@@ -1711,7 +1709,7 @@ E) Remove duplicates from the Country column.
 **Correct Answer: D and E**
 
 **Explanation:**
-Delete the City column (not needed in a Country dimension) and Remove duplicates from the Country column to produce a unique list of countries.
+Delete the City column (not needed in a Country dimension). Remove duplicates from the Country column to produce a unique list of countries.
 
 ---
 
@@ -1745,13 +1743,13 @@ NOTE: Each correct selection is worth one point.
 - Removing ShipDate reduces model size while still supporting analysis: Yes
 
 **Explanation:**
-LastUpdated and ShipDate are not needed for any of the three analyses. ProductID is needed to analyze by product.
+LastUpdated and ShipDate are not referenced in any of the three required analyses (all use OrderDate). ProductID is required for product-level analysis.
 
 ---
 
 ## Question #95
 
-Same CSV complaints scenario (Logged column: 2018-12-31 at 08:59).
+Same CSV complaints scenario (Logged: 2018-12-31 at 08:59).
 What should you do?
 
 A) Create a column by example starting with 2018-12-31 and set data type to Date.
@@ -1762,14 +1760,14 @@ D) Add a conditional column outputting the year.
 **Correct Answer: A**
 
 **Explanation:**
-Column by example detects the date pattern automatically. Setting data type to Date enables the built-in date hierarchy.
+Column by example detects the date pattern automatically. Setting the data type to Date enables the built-in date hierarchy.
 
 ---
 
 ## Question #96
 
 You have an Employees table (Employee Name, Email Address, Start Date, Job Title). You are implementing dynamic RLS.
-You need a table filter where users see only their own employee data. The DAX expression must work in both Power BI Desktop and the Power BI service.
+You need a table filter where users see only their own data. The expression must work in both Power BI Desktop and the Power BI service.
 Which expression should you use?
 
 A) [Email Address] = USERNAME()
@@ -1780,7 +1778,7 @@ D) [Email Address] = USERPRINCIPALNAME()
 **Correct Answer: D**
 
 **Explanation:**
-USERPRINCIPALNAME() returns the UPN (resembles an email address) and works in both Power BI Desktop and the Power BI service. Matching against Email Address ensures each user sees only their own record.
+USERPRINCIPALNAME() returns the UPN (looks like an email address) and works in both Power BI Desktop and the Power BI service. Matching against Email Address ensures each user sees only their own record.
 
 ---
 
@@ -1793,17 +1791,17 @@ Requirements:
 - CFO sees all countries' sales data.
 
 **Correct Answer:**
-- Human Resources role filter: [Manager] = "CFO" (set to False() to block CFO)
+- Human Resources role filter: [Manager] = "CFO" (returns False for HR — blocks CFO)
 - Country role filter: [Email] = USERPRINCIPALNAME()
 
 **Explanation:**
-For Human Resources, filter [Manager] = "CFO" with False() blocks CFO from seeing HR data. For Country, [Email] = USERPRINCIPALNAME() ensures each manager sees only their country.
+For Human Resources, the filter [Manager]="CFO" evaluates to False for non-CFO users, preventing access. For Country, [Email]=USERPRINCIPALNAME() dynamically filters each manager to their own country.
 
 ---
 
 ## Question #98
 
-You use Power Query to load a query with renamed and custom columns from an Excel spreadsheet. You receive the error: "Expression.Error: The column 'Category' of the table wasn't found."
+You receive the error: "Expression.Error: The column 'Category' of the table wasn't found."
 What are two possible causes? Each correct answer presents a complete solution.
 NOTE: Each correct selection is worth one point.
 
@@ -1815,16 +1813,16 @@ D) The data type of the column was changed.
 **Correct Answer: A and B**
 
 **Explanation:**
-A: Column removed from source — Power Query cannot find a column that no longer exists.
-B: Column renamed in source — Power Query looks for the original name and fails when it cannot find it.
+A: Column removed — Power Query cannot reference a column that no longer exists.
+B: Column renamed — Power Query looks for the original name and fails when it cannot find it.
 
 ---
 
 ## Question #99
 
-You have a Sales table with columns: Order Line ID, Product ID, Unit Price, Order ID, Quantity. Orders are uniquely identified by Order ID with multiple order lines per order.
-You need a DAX measure that counts the number of orders.
-Which formula should you use?
+You have a Sales table (Order Line ID, Product ID, Unit Price, Order ID, Quantity). Orders are uniquely identified by Order ID with multiple order lines per order.
+You need a DAX measure counting the number of orders.
+Which formula?
 
 A) Count('Sales'[Order ID])
 B) CountA('Sales'[Order ID])
@@ -1834,14 +1832,14 @@ D) DistinctCount('Sales'[Order ID])
 **Correct Answer: D**
 
 **Explanation:**
-DISTINCTCOUNT counts the number of unique Order IDs, giving the actual number of orders regardless of how many line items each order has.
+DISTINCTCOUNT counts unique Order IDs, giving the actual number of distinct orders regardless of how many line items each has.
 
 ---
 
 ## Question #100 (DRAG DROP)
 
-You need to clean a query where the discount column contains numeric values and Error values. You need to replace errors with 0.05 and keep all rows, minimizing effort.
-Which three actions should you perform in sequence?
+You need to clean a query where the discount column has errors. Replace errors with 0.05, keep all rows, minimize effort.
+Which three actions in sequence?
 
 **Correct Answer:**
 1. Select the discount column.
@@ -1849,7 +1847,7 @@ Which three actions should you perform in sequence?
 3. For the discount column, change Data Type to Decimal Number.
 
 **Explanation:**
-Select the column first, then Replace Errors with 0.05. Finally set the data type to Decimal Number to ensure proper numeric handling.
+Select the column first, then Replace Errors with 0.05, then set data type to Decimal Number for proper numeric handling.
 
 ---
 
@@ -1864,10 +1862,10 @@ NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
 - The error is caused by: mismatched data types
-- The desired outcome of the custom column is: A1
+- The desired outcome is: A1
 
 **Explanation:**
-The & operator requires both operands to be text. The right operand is a Number (1), not Text. Converting to text would produce "A1" as the concatenated result.
+The & operator requires both operands to be Text. Right operand is Number (1). The intended result of concatenating "A" and 1 is "A1".
 
 ---
 
@@ -1876,24 +1874,23 @@ The & operator requires both operands to be text. The right operand is a Number 
 You need to create a calculated table named Numbers containing all integers from -100 to 100.
 
 ```
-Numbers =
-[answer choice] ( [answer choice] )
+Numbers = [answer choice] ( [answer choice] )
 ```
 
 NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
-- First blank: GENERATESERIES
-- Second blank: (-100, 100, 1)
+- Function: GENERATESERIES
+- Parameters: (-100, 100, 1)
 
 **Explanation:**
-GENERATESERIES(start, end, increment) generates a table of values. GENERATESERIES(-100, 100, 1) produces all integers from -100 to 100 inclusive.
+GENERATESERIES(start, end, increment) generates a series. GENERATESERIES(-100, 100, 1) produces integers from -100 to 100 inclusive.
 
 ---
 
 ## Question #103
 
-From Power Query Editor, you receive: "Datasource.Error: Could not find file."
+You receive: "Datasource.Error: Could not find file."
 What are two possible causes? Each correct answer presents a complete solution.
 NOTE: Each correct selection is worth one point.
 
@@ -1905,16 +1902,16 @@ D) The referenced file was moved to a new location.
 **Correct Answer: A and D**
 
 **Explanation:**
-A: Insufficient permissions prevent access to the file.
-D: If the file was moved, Power Query cannot find it at the original path.
+A: Insufficient permissions prevent file access.
+D: File moved to a new location — Power Query cannot find it at the original path.
 
 ---
 
 ## Question #104
 
-You have an Excel worksheet with SKU, price, and discount columns. Several discount cells contain Excel errors (#DIV/0!, #NAME?, etc.).
-Requirements: errors replaced with 0.05, all rows maintained, minimize administrative effort.
-What should you do in Power Query Editor?
+You have an Excel file with SKU, price, and discount columns. Discount cells contain Excel errors (#DIV/0!, #NAME?, etc.).
+Requirements: errors replaced with 0.05, all rows maintained, minimize effort.
+What should you do?
 
 A) Select Replace Errors.
 B) Edit the query in the Query Errors group.
@@ -1924,28 +1921,27 @@ D) Select Keep Errors.
 **Correct Answer: A**
 
 **Explanation:**
-Replace Errors allows you to replace all error values in the discount column with a specified value (0.05), preserving all rows.
+Replace Errors replaces all error values in the selected column with a specified value (0.05), preserving all rows.
 
 ---
 
 ## Question #105
 
-You have a Sales Data query with columns: Sale date, Product ID, Product name, Product category, Customer ID.
-You need to create Product Dimension and Sales Fact queries from Sales Data, minimizing maintenance and dataset size.
-Which two actions should you perform? Each correct answer presents part of the solution.
+You have a Sales Data query (Sale date, Product ID, Product name, Product category, Customer ID). You need to create Product Dimension and Sales Fact queries from it, minimizing maintenance and dataset size.
+Which two actions? Each correct answer presents part of the solution.
 NOTE: Each correct selection is worth one point.
 
 A) Reference the Sales Data query to create the new queries.
 B) Disable the load for the Sales Fact query.
-C) Duplicate the Sales Data query to create the new queries.
-D) Clear Include in report refresh for the Sales Data query.
+C) Duplicate the Sales Data query.
+D) Clear Include in report refresh for Sales Data.
 E) Disable the load for the Sales Data query.
 
 **Correct Answer: A and E**
 
 **Explanation:**
-A: Referencing Sales Data creates derived queries that automatically inherit source changes, minimizing maintenance.
-E: Disabling load for the source Sales Data query prevents it from being loaded as a separate table, reducing model size.
+A: Referencing creates derived queries that inherit source changes — minimizes maintenance.
+E: Disabling load for Sales Data prevents it loading as a separate model table — reduces model size.
 
 ---
 
@@ -1953,7 +1949,7 @@ E: Disabling load for the source Sales Data query prevents it from being loaded 
 
 You have a Date table with columns: Date, Fiscal Year, Fiscal Quarter, Month Name, Calendar Year, Week Number, Month Number, Calendar Quarter.
 You need a calculated table with only unique combinations of Calendar Year, Calendar Quarter, and Calendar Month.
-Which DAX function should you use?
+Which DAX function?
 
 A) ADDCOLUMNS
 B) CALCULATE
@@ -1963,35 +1959,33 @@ D) DATATABLE
 **Correct Answer: C**
 
 **Explanation:**
-SUMMARIZE groups the Date table by the specified columns and returns unique combinations. Example: SUMMARIZE(Date, 'Date'[Calendar Year], 'Date'[Calendar Quarter], 'Date'[Month Name])
+SUMMARIZE groups the Date table by specified columns and returns unique combinations. Example: SUMMARIZE(Date, 'Date'[Calendar Year], 'Date'[Calendar Quarter], 'Date'[Month Name])
 
 ---
 
 ## Question #107 (HOTSPOT)
 
-You have Date and Sales tables. You need a calculated table with one row per year and a column for total sales per year.
+You have Date and Sales tables. You need a calculated table with one row per year and total sales per year.
 
 ```
-SalesSummary =
-[answer choice] ( Sales, [answer choice], "Sales", SUM(Sales[Sale]) )
+SalesSummary = [answer choice] ( Sales, [answer choice], "Sales", SUM(Sales[Sale]) )
 ```
 
 NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
-- First blank: SUMMARIZE
-- Second blank: Date[Year]
+- Function: SUMMARIZE
+- Column: Date[Year]
 
 **Explanation:**
-SUMMARIZE(Sales, Date[Year], "Sales", SUM(Sales[Sale])) groups Sales by year and calculates total sales per year.
+SUMMARIZE(Sales, Date[Year], "Sales", SUM(Sales[Sale])) groups by year and calculates total sales per year.
 
 ---
 
 ## Question #108
 
-You import Excel sales data with columns: Month, 2020 (values), 2021 (values).
-You need to reshape to three columns: Month, Sales, Year.
-What should you select in Power Query Editor?
+You import Excel sales data with columns: Month, 2020 (values), 2021 (values). You need to reshape to: Month, Sales, Year.
+What should you select?
 
 A) Merge columns
 B) Transpose
@@ -2001,13 +1995,13 @@ D) Pivot column
 **Correct Answer: C**
 
 **Explanation:**
-Unpivoting the 2020 and 2021 columns converts them from separate columns into rows with an Attribute column (Year) and Value column (Sales).
+Unpivot columns transforms the year columns (2020, 2021) into rows with Attribute (Year) and Value (Sales) columns.
 
 ---
 
 ## Question #109 (HOTSPOT)
 
-You have Inventory data (recorded daily, correct value = last value of month). You need a DAX measure that shows correct inventory when users analyze by year, month, or date.
+You have Inventory data recorded daily. Correct inventory = last value of the month. You need a semi-additive DAX measure.
 
 ```
 Last Inventory Count =
@@ -2020,21 +2014,19 @@ Last Inventory Count =
 NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
-- First blank: Calculate
-- Second blank: LastDate
+- Outer function: Calculate
+- Inner function: LastDate
 
 **Explanation:**
-CALCULATE(SUM(Inventory[QuantityAvailable]), LASTDATE('Date'[Date])) returns the inventory sum for the last date in the current date context (year, month, or day).
+CALCULATE(SUM('Inventory'[QuantityAvailable]), LASTDATE('Date'[Date])) returns inventory for the last date in the current context — correct semi-additive behavior.
 
 ---
 
 ## Question #110
 
-You have a Power BI report importing a date table and a sales table with three date foreign keys: Due Date, Order Date, Delivery Date.
-You need to support analysis of sales over time based on all three dates simultaneously.
-Solution: Rename the date table as Due Date, create Order Date and Delivery Date as calculated tables using DAX, create active relationships between sales and each date table.
+Solution: Rename the date table as Due Date, create Order Date and Delivery Date as DAX calculated tables, create active relationships between sales and each date table.
 
-Does this meet the goal?
+Does this meet the goal of analyzing sales by all three dates simultaneously?
 
 A) Yes
 B) No
@@ -2042,44 +2034,44 @@ B) No
 **Correct Answer: A**
 
 **Explanation:**
-Creating three separate date tables (one per foreign key) and establishing active relationships to each allows analysis by all three date types simultaneously.
+Three separate date tables with active relationships to the sales table enables independent analysis by Due Date, Order Date, and Delivery Date simultaneously.
 
 ---
 
 ## Question #111
 
-Same CSV complaints scenario. Correct answer to analyze by logged date using built-in date hierarchy:
+Same CSV complaints scenario.
+What should you do to analyze by logged date with built-in date hierarchy?
 
 A) Apply the Parse function from Date transformations.
-B) Change data type of Logged to Date.
-C) Split Logged by "at" as the delimiter.
+B) Change data type to Date.
+C) Split by "at" as delimiter.
 D) Create a column by example starting with 2018-12-31.
 
 **Correct Answer: C**
 
 **Explanation:**
-Splitting by "at" creates a date part column. Power BI recognizes the date format and enables the built-in hierarchy.
+Splitting by "at" extracts the date portion. Power BI converts it to Date type, enabling date hierarchy.
 
 ---
 
 ## Question #112 (DRAG DROP)
 
-You have two Excel workbooks in OneDrive, each with a Sales table of the same structure. You plan to combine both into a single table and create visuals. You need to publish a separate report and dataset.
-Which storage mode for each file?
+You have two Excel workbooks in OneDrive, each with a Sales table. You need to combine into one table, create visuals, and publish a separate report and dataset.
+Which storage modes?
 
 **Correct Answer:**
-- Report file: LiveConnect
-- Dataset file: Import
+- Report file: Import
+- Dataset file: DirectQuery
 
 **Explanation:**
-Import the data into the dataset file. The report file connects to the published dataset using LiveConnect, enabling separate report and dataset publishing.
+Import the combined data into the dataset. DirectQuery keeps the dataset connected to source. Publishing separately enables the report to reference the dataset independently.
 
 ---
 
 ## Question #113
 
-You use Power Query to import Order Header and Order Details from Azure SQL. The tables relate by Order ID.
-You need to combine into a single query containing unique columns from each table.
+You import Order Header and Order Details from Azure SQL. They relate by Order ID. You need a single query with unique columns from both tables.
 What should you select?
 
 A) Merge queries
@@ -2089,13 +2081,14 @@ C) Append queries
 **Correct Answer: A**
 
 **Explanation:**
-Merge queries joins two tables on a common column (Order ID), combining their unique columns into a single query.
+Merge queries joins tables on a common column (Order ID), similar to SQL JOIN, combining unique columns from both tables.
 
 ---
 
 ## Question #114
 
-Same CSV complaints scenario (Logged: 2018-12-31 at 08:59). Best action:
+Same CSV complaints scenario.
+What should you do?
 
 A) Extract last 11 characters and set to Date.
 B) Change data type to Date.
@@ -2105,7 +2098,7 @@ D) Apply Parse function from Date transformations.
 **Correct Answer: C**
 
 **Explanation:**
-Splitting by "at" creates the date portion as a separate column, which can then be set to Date type to enable date hierarchy.
+Splitting by "at" extracts the date portion, which can then be set to Date type to enable the built-in date hierarchy.
 
 ---
 
@@ -2115,27 +2108,26 @@ You have a Headcount table (one row per employee per month) and a Date table (20
 
 ```
 Headcount =
-[answer choice] (
+Calculate (
     [answer choice],
-    [answer choice]
+    [answer choice] ( 'Date'[Date] )
 )
 ```
 
 NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
-- First blank: Calculate
-- Second blank: CountRows('Headcount')
-- Third blank: LastDate('Date'[Date])
+- Count function: CountRows('Headcount')
+- Date function: LastDate('Date'[Date])
 
 **Explanation:**
-CALCULATE(COUNTROWS('Headcount'), LASTDATE('Date'[Date])) counts employees as of the last date in the current context, making it semi-additive.
+CALCULATE(COUNTROWS('Headcount'), LASTDATE('Date'[Date])) counts employees as of the last date in the current filter context — correct semi-additive headcount measure.
 
 ---
 
 ## Question #116 (HOTSPOT)
 
-You have an All Sales query. You need to create Sales Fact, Product Dimension, and Customer Dimension queries from All Sales while minimizing maintenance.
+You have an All Sales query. You need Sales Fact, Product Dimension, and Customer Dimension queries derived from All Sales, minimizing maintenance.
 NOTE: Each correct selection is worth one point.
 
 **Correct Answer:**
@@ -2143,24 +2135,24 @@ NOTE: Each correct selection is worth one point.
 - Clear Enable data load for: All Sales
 
 **Explanation:**
-Referencing creates dependent queries that inherit changes from All Sales, minimizing maintenance. Disabling load for All Sales prevents it from being loaded as a separate model table.
+Referencing creates queries that inherit All Sales transformations automatically. Disabling All Sales load prevents it from appearing as a separate model table.
 
 ---
 
 ## Question #117
 
-You have Sales and Date tables. Total Sales = SUM(Sales[Sale]). You need a Previous Quarter measure showing sales one quarter before the selected period.
+You have Total Sales = SUM(Sales[Sale]). You need a Previous Quarter measure.
 Which DAX calculation?
 
 A) CALCULATE([Total Sales], DATEADD(Date[Date], -1, QUARTER))
 B) CALCULATE([Total Sales], DATESQTD(Date[Date]))
 C) TOTALQTD([Total Sales], Date[Date])
-D) CALCULATE([Total Sales], PARALLELPERIOD(Date[Date], -1, QUARTER))
+D) CALCULATE([Total Sales], PARALLELPERIOD(Date[Date], 1, QUARTER))
 
 **Correct Answer: A**
 
 **Explanation:**
-DATEADD shifts dates by exactly -1 quarter relative to the current context. PARALLELPERIOD returns the entire parallel period, not just a shift.
+DATEADD(Date[Date], -1, QUARTER) shifts the date context back by exactly one quarter, returning sales for that prior quarter.
 
 ---
 
@@ -2177,9 +2169,8 @@ D) Split the visuals onto multiple pages.
 **Correct Answer: D**
 
 **Explanation:**
-Splitting visuals across multiple pages reduces the number of visuals rendered simultaneously, decreasing page load time.
+Splitting visuals across multiple pages reduces the number rendered simultaneously, decreasing page load time.
 
----
 
 ## Question #119 (HOTSPOT)
 
