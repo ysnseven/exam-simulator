@@ -41,6 +41,7 @@
     const DARK = {
       mode:"dark", pageBg:"#040d1a", cardBg:"#0f172a", insetBg:"#0a0f1e",
       elevBg:"#1e293b", border:"#1e293b", borderSub:"#334155",
+      shadow:"none",
       text:"#f1f5f9", textSub:"#94a3b8", textMuted:"#64748b", textFaint:"#475569",
       topbar:"#0a0f1eee", topbarBorder:"#1e293b",
       grid:"linear-gradient(#1e293b18 1px,transparent 1px),linear-gradient(90deg,#1e293b18 1px,transparent 1px)",
@@ -57,13 +58,14 @@
       timerWarn:"#ef4444", timerOk:"#10b981",
     };
     const LIGHT = {
-      mode:"light", pageBg:"#ffffff", cardBg:"#ffffff", insetBg:"#f5f5f5",
-      elevBg:"#efefef", border:"#e4e4e4", borderSub:"#cfcfcf",
-      text:"#111111", textSub:"#444444", textMuted:"#777777", textFaint:"#aaaaaa",
-      topbar:"#ffffffee", topbarBorder:"#e4e4e4",
+      mode:"light", pageBg:"#ffffff", cardBg:"#ffffff", insetBg:"#f8f8f8",
+      elevBg:"#f0f0f0", border:"#e8e8e8", borderSub:"#d4d4d4",
+      shadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",
+      text:"#111111", textSub:"#3d3d3d", textMuted:"#707070", textFaint:"#b0b0b0",
+      topbar:"#fffffff5", topbarBorder:"#e8e8e8",
       grid:"none",
-      scrollTrack:"#f5f5f5", scrollThumb:"#d0d0d0",
-      idle:   {bg:"#f5f5f5",  border:"#e4e4e4", text:"#555555", lBg:"#e4e4e4", lText:"#666666"},
+      scrollTrack:"#f5f5f5", scrollThumb:"#cccccc",
+      idle:   {bg:"#ffffff",  border:"#e0e0e0", text:"#444444", lBg:"#f0f0f0", lText:"#555555"},
       sel:    {bg:"#eff6ff",  border:"#3b82f6", text:"#1e3a5f", lBg:"#3b82f6", lText:"#fff"},
       correct:{bg:"#f0fdf4",  border:"#10b981", text:"#064e3b", lBg:"#10b981", lText:"#fff"},
       wrong:  {bg:"#fef2f2",  border:"#ef4444", text:"#7f1d1d", lBg:"#ef4444", lText:"#fff"},
@@ -71,7 +73,7 @@
       failBg:"#fff1f2", failBorder:"#ef444466",
       exCorrect:{bg:"#f0fdf4",border:"#10b98166",title:"#059669"},
       exWrong:  {bg:"#fff1f2",border:"#ef444466",title:"#dc2626"},
-      uploadBg:"#f5f5f5", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
+      uploadBg:"#f8f8f8", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
       timerWarn:"#ef4444", timerOk:"#10b981",
     };
 
@@ -400,7 +402,7 @@
 
     const Card = memo(({children,style={}})=>{
       const{T}=useTheme();
-      return <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:14,...style}}>{children}</div>;
+      return <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:14,boxShadow:T.shadow||"none",...style}}>{children}</div>;
     });
 
     const SectionLabel = memo(({children})=>{
@@ -1456,7 +1458,7 @@
           @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
           @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
           @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-          body::before{content:'';position:fixed;inset:0;background-image:${T.grid==="none"?"none":T.grid};background-size:44px 44px;pointer-events:none;z-index:0;transition:background-image 0.3s;opacity:${T.mode==="light"?0:1};}
+          body::before{content:'';position:fixed;inset:0;background-image:${T.mode==="light"?"none":T.grid};background-size:44px 44px;pointer-events:none;z-index:0;}
           #root{position:relative;z-index:1}
           kbd{display:inline-block}
         `}</style>

@@ -41,6 +41,7 @@
     const DARK = {
       mode:"dark", pageBg:"#040d1a", cardBg:"#0f172a", insetBg:"#0a0f1e",
       elevBg:"#1e293b", border:"#1e293b", borderSub:"#334155",
+      shadow:"none",
       text:"#f1f5f9", textSub:"#94a3b8", textMuted:"#64748b", textFaint:"#475569",
       topbar:"#0a0f1eee", topbarBorder:"#1e293b",
       grid:"linear-gradient(#1e293b18 1px,transparent 1px),linear-gradient(90deg,#1e293b18 1px,transparent 1px)",
@@ -57,13 +58,14 @@
       timerWarn:"#ef4444", timerOk:"#10b981",
     };
     const LIGHT = {
-      mode:"light", pageBg:"#ffffff", cardBg:"#ffffff", insetBg:"#f5f5f5",
-      elevBg:"#efefef", border:"#e4e4e4", borderSub:"#cfcfcf",
-      text:"#111111", textSub:"#444444", textMuted:"#777777", textFaint:"#aaaaaa",
-      topbar:"#ffffffee", topbarBorder:"#e4e4e4",
+      mode:"light", pageBg:"#ffffff", cardBg:"#ffffff", insetBg:"#f8f8f8",
+      elevBg:"#f0f0f0", border:"#e8e8e8", borderSub:"#d4d4d4",
+      shadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",
+      text:"#111111", textSub:"#3d3d3d", textMuted:"#707070", textFaint:"#b0b0b0",
+      topbar:"#fffffff5", topbarBorder:"#e8e8e8",
       grid:"none",
-      scrollTrack:"#f5f5f5", scrollThumb:"#d0d0d0",
-      idle:   {bg:"#f5f5f5",  border:"#e4e4e4", text:"#555555", lBg:"#e4e4e4", lText:"#666666"},
+      scrollTrack:"#f5f5f5", scrollThumb:"#cccccc",
+      idle:   {bg:"#ffffff",  border:"#e0e0e0", text:"#444444", lBg:"#f0f0f0", lText:"#555555"},
       sel:    {bg:"#eff6ff",  border:"#3b82f6", text:"#1e3a5f", lBg:"#3b82f6", lText:"#fff"},
       correct:{bg:"#f0fdf4",  border:"#10b981", text:"#064e3b", lBg:"#10b981", lText:"#fff"},
       wrong:  {bg:"#fef2f2",  border:"#ef4444", text:"#7f1d1d", lBg:"#ef4444", lText:"#fff"},
@@ -71,7 +73,7 @@
       failBg:"#fff1f2", failBorder:"#ef444466",
       exCorrect:{bg:"#f0fdf4",border:"#10b98166",title:"#059669"},
       exWrong:  {bg:"#fff1f2",border:"#ef444466",title:"#dc2626"},
-      uploadBg:"#f5f5f5", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
+      uploadBg:"#f8f8f8", uploadLoaded:"#f0fdf4", uploadBorderLoaded:"#10b98188",
       timerWarn:"#ef4444", timerOk:"#10b981",
     };
 
@@ -400,7 +402,7 @@
 
     const Card = memo(({children,style={}})=>{
       const{T}=useTheme();
-      return <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:14,...style}}>{children}</div>;
+      return <div style={{background:T.cardBg,border:`1px solid ${T.border}`,borderRadius:14,boxShadow:T.shadow||"none",...style}}>{children}</div>;
     });
 
     const SectionLabel = memo(({children})=>{
@@ -543,6 +545,30 @@
     // ─────────────────────────────────────────────────────────────────────────
     // HOME SCREEN
     // ─────────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // PL-300 TOPIC CATEGORIZER
+    // ─────────────────────────────────────────────────────────────────────────
+    function categorizePL300(q) {
+      const txt = (q.question+" "+(q.options||[]).map(o=>o.text).join(" ")+" "+(q.explanation||"")).toLowerCase();
+      // 1. ความปลอดภัยและสิทธิ์ (Security & RLS) — distinctive keywords first
+      if (/row.level.security|\brls\b|username\(\)|userprincipalname\(\)|table.filter.dax|sensitivity.label|data.protection|\brow.filter\b|azure.active.directory|\bservice.principal\b|oauth2?|build.permission|workspace.role|viewer.role|contributor.role|member.role|admin.role/.test(txt))
+        return "🔐 ความปลอดภัยและสิทธิ์ (Security & RLS)";
+      // 2. เตรียมและแปลงข้อมูล (Prepare & Transform) — Power Query / M code
+      if (/power.query|query.editor|advanced.editor|\bm.code\b|formula.bar|get.data|data.source|connector|data.gateway|on.premises.gateway|\btransform\b.*data|merge.quer|append.quer|combine.files|unpivot|split.column|column.profil|value.distribution|data.profil|replace.value|remove.duplicates|change.type|data.type|blank.query|dataflow|\bcsv\b|\bjson\b.*file|\bexcel\b.*source|\bsql.server\b.*import|\bfolder\b.*data.source|web.connector|sharepoint.*list|odata/.test(txt))
+        return "🔄 เตรียมและแปลงข้อมูล (Prepare Data)";
+      // 3. DAX และการคำนวณ (DAX & Measures)
+      if (/\bdax\b|\bcalculate\b|\bsumx\b|\bcountx\b|\baveragex\b|\bfilter\b.*function|\ball\b.*\bdax\b|\ballselected\b|\ballex\b|\buserelationship\b|\brelated\b\(|\brelatedtable\b|\brankx\b|\btopn\b|\bearlier\b|\bvar\b.*\breturn\b|\bmeasure\b|calculated.column|calculated.table|implicit.measure|explicit.measure|time.intelligence|\bfiscal\b.*year|\bytd\b|\bmtd\b|\bqtd\b|sameperiodlastyear|dateadd\b|totalytd\b|datesbetween|parallelperiod|previousmonth|previousyear|dax.expression|dax.formula|dax.function/.test(txt))
+        return "📐 DAX และการคำนวณ (DAX & Measures)";
+      // 4. โมเดลและความสัมพันธ์ (Data Model & Relationships)
+      if (/\brelationship\b|cardinality|many.to.many|one.to.many|many.to.one|star.schema|snowflake.schema|fact.table|dimension.table|storage.mode|directquery|dual.mode|composite.model|\baggregation\b|bidirectional|inactive.relationship|active.relationship|semantic.model|data.model|import.mode|query.folding|incremental.refresh.*model|\bhierarchy\b.*model|date.table|mark.as.date/.test(txt))
+        return "🗄️ โมเดลและความสัมพันธ์ (Data Model)";
+      // 5. เผยแพร่และบำรุงรักษา (Deploy & Maintain)
+      if (/\bpublish\b|\bworkspace\b|power.bi.service|deployment.pipeline|\bgateway\b|scheduled.refresh|incremental.refresh|premium.capacity|pro.license|\bapp\b.*power.bi|paginated.report|\bssrs\b|streaming.dataset|push.dataset|real.time.dashboard|\bsubscribe\b|data.alert|\bthreshold\b.*alert|email.*notification|mobile.*layout|phone.*layout|export.*report|print.*report/.test(txt))
+        return "🚀 เผยแพร่และบำรุงรักษา (Deploy & Maintain)";
+      // 6. สร้างรายงานและ Visuals (Visualize & Analyze) — broad catch-all
+      return "📊 สร้างรายงานและ Visuals (Visualize & Analyze)";
+    }
+
     function HomeScreen({onStart}){
       const{T}=useTheme();
       const[allQ,setAllQ]=useState([]);
@@ -598,8 +624,10 @@
           .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.text();})
           .then(text=>{
             const{questions,skipped}=parseAnyMd(text,"ML-300.md");
-            if(questions.length>0)handleAddFiles([{name:"ML-300.md",questions,skipped}]);
-            else setAutoError("ไม่พบข้อสอบในไฟล์ ML-300.md — ตรวจสอบรูปแบบไฟล์อีกครั้ง");
+            if(questions.length>0){
+              const categorized=questions.map(q=>({...q,category:categorizePL300(q)}));
+              handleAddFiles([{name:"ML-300.md",questions:categorized,skipped}]);
+            } else setAutoError("ไม่พบข้อสอบในไฟล์ ML-300.md — ตรวจสอบรูปแบบไฟล์อีกครั้ง");
             setAutoLoading(false);
           })
           .catch(err=>{setAutoError("โหลดไฟล์ ML-300.md ไม่สำเร็จ: "+err.message);setAutoLoading(false);});
@@ -1488,7 +1516,7 @@
           @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
           @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
           @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-          body::before{content:'';position:fixed;inset:0;background-image:${T.grid==="none"?"none":T.grid};background-size:44px 44px;pointer-events:none;z-index:0;transition:background-image 0.3s;opacity:${T.mode==="light"?0:1};}
+          body::before{content:'';position:fixed;inset:0;background-image:${T.mode==="light"?"none":T.grid};background-size:44px 44px;pointer-events:none;z-index:0;}
           #root{position:relative;z-index:1}
           kbd{display:inline-block}
         `}</style>
